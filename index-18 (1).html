@@ -1,0 +1,2142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz Forge — Turn anything into a quiz</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth.js/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Source+Sans+3:wght@400;500;600;700&display=swap');
+
+  :root{
+    --paper:#f6f2ea;
+    --ink:#2b2620;
+    --ink-soft:#6b6255;
+    --line:#ddd4c2;
+    --moss:#4a6741;
+    --moss-deep:#26391f;
+    --moss-pale:#e8efe3;
+    --clay:#b5502f;
+    --clay-pale:#f6e3da;
+    --gold:#a3791f;
+    --gold-pale:#f5ecd6;
+    --card:#fffdf8;
+    --error:#a33d2f;
+    --error-pale:#f7e2de;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Source Sans 3','Noto Sans Kannada','Nirmala UI',sans-serif;
+    line-height:1.5;
+  }
+  h1,h2,h3{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    margin:0;
+    color:var(--ink);
+  }
+  .wrap{
+    max-width:920px;
+    margin:0 auto;
+    padding:2.5rem 1.5rem 5rem;
+  }
+  header{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    margin-bottom:2.25rem;
+    border-bottom:1px solid var(--line);
+    padding-bottom:1.25rem;
+  }
+  header h1{font-size:1.7rem; letter-spacing:-0.01em;}
+  header h1 span{color:var(--moss);}
+  header p{margin:0.2rem 0 0; color:var(--ink-soft); font-size:0.92rem;}
+
+  .tabs{display:flex; gap:0.4rem; flex-wrap:wrap; margin-bottom:1.25rem;}
+  .tab{
+    padding:0.5rem 0.95rem; border:1px solid var(--line); background:var(--card);
+    border-radius:7px; cursor:pointer; font-size:0.9rem; color:var(--ink-soft);
+    transition:border-color .15s, color .15s;
+  }
+  .tab:hover{border-color:var(--moss);}
+  .tab.active{background:var(--moss); border-color:var(--moss); color:#fff;}
+
+  .panel{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:1.5rem; margin-bottom:1.25rem;}
+  .field{margin-bottom:1rem;}
+  .field:last-child{margin-bottom:0;}
+  label{display:block; font-size:0.82rem; color:var(--ink-soft); margin-bottom:0.35rem; font-weight:500;}
+  textarea, input[type=text], input[type=url], input[type=number], select{
+    width:100%; border:1px solid var(--line); border-radius:7px; padding:0.65rem 0.8rem;
+    font-family:inherit; font-size:0.95rem; background:#fff; color:var(--ink);
+  }
+  textarea{min-height:140px; resize:vertical;}
+  textarea:focus, input:focus, select:focus{outline:2px solid var(--moss); outline-offset:1px;}
+
+  .row{display:flex; gap:1rem; flex-wrap:wrap;}
+  .row > .field{flex:1; min-width:150px;}
+
+  .dropzone{
+    border:1.5px dashed var(--line); border-radius:8px; padding:2rem 1rem; text-align:center;
+    color:var(--ink-soft); cursor:pointer; transition:border-color .15s, background .15s; font-size:0.9rem;
+  }
+  .dropzone:hover, .dropzone.drag{border-color:var(--moss); background:#fbfaf5;}
+  .dropzone strong{color:var(--ink);}
+  .filename{margin-top:0.6rem; font-size:0.85rem; color:var(--moss-deep); font-weight:600;}
+
+  button.primary{
+    background:var(--moss); color:#fff; border:none; padding:0.75rem 1.4rem; border-radius:7px;
+    font-size:0.95rem; font-weight:600; cursor:pointer; font-family:inherit; transition:background .15s;
+  }
+  button.primary:hover{background:var(--moss-deep);}
+  button.primary:disabled{background:#a6a196; cursor:not-allowed;}
+  button.ghost{
+    background:transparent; border:1px solid var(--line); color:var(--ink); padding:0.6rem 1.1rem;
+    border-radius:7px; font-size:0.88rem; cursor:pointer; font-family:inherit;
+  }
+  button.ghost:hover{border-color:var(--moss); color:var(--moss-deep);}
+  button.ghost:disabled{opacity:0.5; cursor:not-allowed;}
+  .choice-btn{
+    display:flex; flex-direction:column; align-items:center; gap:0.15rem;
+    min-width:190px; padding:1rem 1.2rem; text-align:center; line-height:1.3;
+  }
+  .choice-btn .sub{font-weight:400; font-size:0.78rem; opacity:0.85;}
+
+  .status{margin-top:0.9rem; font-size:0.88rem; color:var(--ink-soft); display:flex; align-items:center; gap:0.5rem;}
+  .status.err{color:var(--error);}
+  .spinner{width:14px; height:14px; border:2px solid var(--line); border-top-color:var(--moss); border-radius:50%; animation:spin .7s linear infinite; flex-shrink:0;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* question type builder */
+  .qtype-table{width:100%; border-collapse:collapse; margin-top:0.4rem;}
+  .qtype-table th{
+    text-align:left; font-size:0.78rem; color:var(--ink-soft); font-weight:600;
+    padding:0.35rem 0.5rem; border-bottom:1px solid var(--line);
+  }
+  .qtype-table td{padding:0.4rem 0.5rem; border-bottom:1px solid #ece5d5; font-size:0.9rem;}
+  .qtype-table input[type=number]{width:70px; padding:0.4rem 0.5rem;}
+  .qtype-table .desc{color:var(--ink-soft); font-size:0.78rem;}
+  .qtype-total{
+    margin-top:0.7rem; font-size:0.88rem; font-weight:600; display:flex; justify-content:space-between;
+    padding-top:0.6rem; border-top:1px solid var(--line);
+  }
+  .qtype-total.over{color:var(--error);}
+
+  /* quiz results */
+  .quiz-head{display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; margin-bottom:1.25rem; flex-wrap:wrap;}
+  .quiz-head h2{font-size:1.4rem;}
+  .quiz-head .meta{color:var(--ink-soft); font-size:0.85rem; margin-top:0.2rem;}
+  .actions{display:flex; gap:0.5rem; flex-wrap:wrap;}
+
+  .qcard{border:1px solid var(--line); border-radius:9px; padding:1.1rem 1.25rem; margin-bottom:0.9rem; background:var(--card);}
+  .qcard .qnum{font-family:'Fraunces',serif; font-weight:600; color:var(--moss-deep); font-size:0.95rem; margin-bottom:0.15rem; display:flex; align-items:center; gap:0.5rem;}
+  .qtype-badge{
+    font-size:0.68rem; font-weight:600; padding:0.15rem 0.5rem; border-radius:20px;
+    background:var(--gold-pale); color:var(--gold); text-transform:none;
+  }
+  .qcard .qtext{font-size:1rem; margin:0.5rem 0 0.7rem; font-weight:500; white-space:pre-line;}
+  .opt{display:flex; align-items:flex-start; gap:0.6rem; padding:0.5rem 0.7rem; border-radius:6px; margin-bottom:0.35rem; font-size:0.92rem; border:1px solid transparent; cursor:default;}
+  .opt.correct{background:var(--moss-pale); border-color:#c3d6b8; color:var(--moss-deep); font-weight:600;}
+  .opt .letter{flex-shrink:0; width:20px; height:20px; border-radius:50%; border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:0.72rem; color:var(--ink-soft);}
+  .opt.correct .letter{background:var(--moss); border-color:var(--moss); color:#fff;}
+  .explain{margin-top:0.6rem; font-size:0.85rem; color:var(--ink-soft); border-top:1px dashed var(--line); padding-top:0.6rem;}
+  .match-table{width:100%; border-collapse:collapse; margin-bottom:0.6rem; font-size:0.9rem;}
+  .match-table th{text-align:left; background:var(--moss-pale); padding:0.4rem 0.6rem; font-size:0.8rem; color:var(--moss-deep);}
+  .match-table td{padding:0.4rem 0.6rem; border-bottom:1px solid #ece5d5;}
+  html{font-size:100%;}
+  .header-tools{display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap; justify-content:flex-end;}
+  .fs-controls{display:flex; align-items:center; gap:0.3rem;}
+  .fs-controls button{padding:0.35rem 0.65rem; font-weight:600; min-width:2.4rem;}
+  .fs-label{font-size:0.78rem; color:var(--ink-soft); min-width:2.8rem; text-align:center;}
+  .explain-card{margin-top:0.9rem; background:var(--gold-pale); border:1px solid #e6d6a8; border-left:4px solid var(--gold); border-radius:8px; padding:0.75rem 1rem; font-weight:400;}
+  .explain-title{font-family:'Fraunces',serif; font-weight:600; font-size:0.85rem; color:var(--gold); margin-bottom:0.4rem; text-transform:uppercase; letter-spacing:0.04em;}
+  .explain-point{font-size:0.9rem; color:var(--ink); line-height:1.5; padding:0.3rem 0; border-top:1px dashed #e6d6a8;}
+  .explain-title + .explain-point{border-top:none; padding-top:0;}
+  .stmt-cards{margin:0.2rem 0 0.8rem;}
+  .stmt-card{
+    display:flex; align-items:flex-start; gap:0.6rem;
+    background:#fff; border:1px solid var(--line); border-left:3px solid var(--moss);
+    border-radius:7px; padding:0.6rem 0.85rem; margin-bottom:0.45rem;
+    font-size:0.95rem; line-height:1.45; font-weight:400;
+  }
+  .stmt-card .stmt-label{flex-shrink:0; font-family:'Fraunces',serif; font-weight:600; color:var(--moss-deep);}
+  .empty-state{text-align:center; padding:3rem 1rem; color:var(--ink-soft);}
+  .empty-state .glyph{font-family:'Fraunces',serif; font-size:2.5rem; color:var(--line); margin-bottom:0.5rem;}
+  .hidden{display:none !important;}
+  .lang-toggle{display:flex; gap:0.4rem;}
+  .lang-toggle label{display:flex; align-items:center; gap:0.35rem; font-size:0.85rem; color:var(--ink); margin:0; font-weight:400; cursor:pointer;}
+
+  /* practice mode */
+  .practice-bar{
+    position:sticky; top:0; background:var(--paper); z-index:10; padding:0.8rem 0 1rem;
+    display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); margin-bottom:1.25rem;
+  }
+  .progress-track{flex:1; height:6px; background:var(--line); border-radius:4px; margin:0 1rem; overflow:hidden;}
+  .progress-fill{height:100%; background:var(--moss); transition:width .2s;}
+  .practice-q{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:1.5rem; margin-bottom:1.25rem;}
+  .practice-opt{
+    display:flex; align-items:flex-start; gap:0.7rem; padding:0.7rem 0.9rem; border-radius:8px;
+    margin-bottom:0.5rem; font-size:0.95rem; border:1.5px solid var(--line); cursor:pointer; background:#fff;
+    transition:border-color .12s, background .12s;
+  }
+  .practice-opt:hover{border-color:var(--moss);}
+  .practice-opt.selected{border-color:var(--moss); background:var(--moss-pale);}
+  .practice-opt.reveal-correct{border-color:var(--moss); background:var(--moss-pale); font-weight:600;}
+  .practice-opt.reveal-wrong{border-color:var(--error); background:var(--error-pale);}
+  .practice-opt .letter{flex-shrink:0; width:22px; height:22px; border-radius:50%; border:1.5px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:0.75rem; color:var(--ink-soft); background:#fff;}
+  .practice-opt.selected .letter{background:var(--moss); border-color:var(--moss); color:#fff;}
+  .practice-nav{display:flex; justify-content:space-between; gap:0.6rem; margin-top:1rem;}
+  .score-card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:2rem; text-align:center; margin-bottom:1.5rem;}
+  .score-big{font-family:'Fraunces',serif; font-size:3rem; font-weight:700; color:var(--moss-deep);}
+  .score-sub{color:var(--ink-soft); font-size:0.95rem; margin-top:0.3rem;}
+  .review-item{border:1px solid var(--line); border-radius:9px; padding:1rem 1.2rem; margin-bottom:0.7rem; background:var(--card);}
+  .review-item.wrong{border-left:4px solid var(--error);}
+  .review-item.right{border-left:4px solid var(--moss);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Quiz <span>Forge</span></h1>
+      <p>Paste, upload, or link anything — get a quiz in seconds.</p>
+    </div>
+    <div class="header-tools">
+      <div class="fs-controls" role="group" aria-label="Text size">
+        <button class="ghost" id="btn-font-down" aria-label="Decrease font size" title="Decrease font size">A−</button>
+        <span id="font-size-label" class="fs-label">100%</span>
+        <button class="ghost" id="btn-font-up" aria-label="Increase font size" title="Increase font size">A+</button>
+      </div>
+      <button class="ghost" id="btn-settings">API Key</button>
+    </div>
+  </header>
+
+  <div class="panel hidden" id="settings-panel">
+    <div class="field">
+      <label>Gemini API key</label>
+      <input type="text" id="input-apikey" placeholder="AIza...">
+      <div style="font-size:0.8rem; color:var(--ink-soft); margin-top:0.5rem;">
+        Get a free key at <strong>aistudio.google.com/apikey</strong>.
+      </div>
+    </div>
+    <div class="field" style="margin-bottom:0.6rem;">
+      <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-weight:400; color:var(--ink);">
+        <input type="checkbox" id="input-remember-key" style="width:auto;">
+        Remember this key on this device (skip re-entering it next time)
+      </label>
+      <div style="font-size:0.78rem; color:var(--ink-soft); margin-top:0.35rem;">
+        If checked, the key is saved in this browser's local storage on this device only — never sent anywhere except Google's API. Uncheck and save again to forget it, or use "Forget saved key" below.
+      </div>
+    </div>
+    <button class="primary" id="btn-save-key">Save</button>
+    <button class="ghost" id="btn-forget-key" style="margin-left:0.5rem;">Forget saved key</button>
+    <span id="key-status" style="margin-left:0.8rem; font-size:0.85rem; color:var(--moss-deep);"></span>
+  </div>
+
+  <div id="setup-screen">
+    <div class="tabs" id="tabs">
+      <div class="tab active" data-mode="text">Text</div>
+      <div class="tab" data-mode="topic">Topic</div>
+      <div class="tab" data-mode="pdf">PDF / DOCX</div>
+      <div class="tab" data-mode="htmltxt">HTML / TXT</div>
+      <div class="tab" data-mode="url">URL</div>
+      <div class="tab" data-mode="image">Image</div>
+    </div>
+
+    <div class="panel">
+      <div class="mode-panel" id="panel-text">
+        <div class="field">
+          <label>Paste your content</label>
+          <textarea id="input-text" placeholder="Paste lecture notes, an article, a chapter — any length."></textarea>
+        </div>
+      </div>
+      <div class="mode-panel hidden" id="panel-topic">
+        <div class="field">
+          <label>Topic</label>
+          <input type="text" id="input-topic" placeholder="e.g. Soil classification in Karnataka">
+        </div>
+        <div class="field">
+          <label>Exam category</label>
+          <div class="lang-toggle" style="margin-top:0.3rem;">
+            <label><input type="radio" name="exam-category" value="agriculture" checked> Agriculture exams</label>
+            <label><input type="radio" name="exam-category" value="general"> General competitive exams</label>
+          </div>
+        </div>
+        <div class="field">
+          <label>Exam focus (optional)</label>
+          <input type="text" id="input-exam-focus" placeholder="Leave blank to search the default list for the selected category — or type specific exams to narrow it">
+        </div>
+        <div class="field">
+          <button class="ghost" id="btn-find-pyqs" type="button">Find real PYQs on this topic first</button>
+          <div style="font-size:0.78rem; color:var(--ink-soft); margin-top:0.4rem;" id="pyq-scope-hint"></div>
+        </div>
+        <div class="field hidden" id="pyq-review-area">
+          <label>Found PYQs — review and edit before using as source (remove anything irrelevant)</label>
+          <textarea id="pyq-review-text" style="min-height:220px;"></textarea>
+          <div id="pyq-sources" style="font-size:0.78rem; color:var(--ink-soft); margin-top:0.5rem;"></div>
+          <div style="margin-top:0.7rem;">
+            <button class="primary" id="btn-use-pyqs" type="button">Use these as source for generation</button>
+          </div>
+        </div>
+        <div class="field hidden" id="topic-continue-row">
+          <label>Continue an existing quiz on this topic</label>
+          <div class="actions">
+            <button class="ghost" id="btn-generate-more" type="button">Generate more questions on this topic</button>
+            <label style="display:flex; align-items:center; gap:0.4rem; font-weight:400; color:var(--ink); cursor:pointer; margin-left:0.5rem;">
+              <input type="checkbox" id="input-merge-earlier" style="width:auto;" checked>
+              Merge with earlier questions (instead of replacing them)
+            </label>
+          </div>
+          <div style="font-size:0.78rem; color:var(--ink-soft); margin-top:0.4rem;" id="topic-continue-hint"></div>
+        </div>
+      </div>
+      <div class="mode-panel hidden" id="panel-pdf">
+        <div class="field">
+          <label>Upload a PDF or Word document</label>
+          <div class="dropzone" id="dropzone-pdf">
+            <strong>Click to upload</strong> or drag a .pdf / .docx file here
+            <div class="filename" id="filename-pdf"></div>
+          </div>
+          <input type="file" id="input-pdf" accept=".pdf,.docx" class="hidden">
+        </div>
+      </div>
+      <div class="mode-panel hidden" id="panel-htmltxt">
+        <div class="field">
+          <label>Upload an HTML or text file</label>
+          <div class="dropzone" id="dropzone-htmltxt">
+            <strong>Click to upload</strong> or drag a .html / .htm / .txt file here
+            <div class="filename" id="filename-htmltxt"></div>
+          </div>
+          <input type="file" id="input-htmltxt" accept=".html,.htm,.txt" class="hidden">
+        </div>
+      </div>
+      <div class="mode-panel hidden" id="panel-url">
+        <div class="field">
+          <label>Webpage URL</label>
+          <input type="url" id="input-url" placeholder="https://example.com/article">
+        </div>
+        <div class="field" style="font-size:0.82rem; color:var(--ink-soft);">
+          Sites that block scripted access may not work — copy-paste the text instead if it fails.
+        </div>
+      </div>
+      <div class="mode-panel hidden" id="panel-image">
+        <div class="field">
+          <label>Upload an image</label>
+          <div class="dropzone" id="dropzone-image">
+            <strong>Click to upload</strong> or drag a diagram, chart, or photo here
+            <div class="filename" id="filename-image"></div>
+          </div>
+          <input type="file" id="input-image" accept="image/*" class="hidden">
+          <img id="preview-image" class="hidden" style="max-width:100%; margin-top:0.8rem; border-radius:8px; border:1px solid var(--line);">
+        </div>
+      </div>
+
+      <div class="field" style="margin-top:1.25rem;">
+        <label>Total number of questions (max 200)</label>
+        <input type="number" id="input-total" value="10" min="1" max="200" style="max-width:140px;">
+      </div>
+
+      <div class="field">
+        <label>Question type mix</label>
+        <table class="qtype-table">
+          <thead><tr><th>Type</th><th class="desc">What it is</th><th>Count</th></tr></thead>
+          <tbody id="qtype-body"></tbody>
+        </table>
+        <div class="qtype-total" id="qtype-total">
+          <span id="qtype-total-label">0 of 10 questions assigned</span>
+          <button class="ghost" id="btn-autofill" style="padding:0.3rem 0.8rem; font-size:0.8rem;">Fill remaining as Standard MCQ</button>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:1.25rem;">
+        <div class="field">
+          <label>Difficulty</label>
+          <select id="input-difficulty">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Question language</label>
+          <select id="input-language">
+            <option value="english" selected>English only</option>
+            <option value="kannada">Kannada only (ಕನ್ನಡ)</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-top:1.25rem;">
+        <button class="primary" id="btn-generate">Generate Quiz</button>
+      </div>
+      <div class="status hidden" id="status"></div>
+    </div>
+  </div>
+
+  <!-- RESULTS (answer key view) -->
+  <div id="results"></div>
+  <div class="panel hidden" id="restore-prompt" style="text-align:center;">
+    <h3 style="margin-bottom:0.4rem;">Resume your last quiz?</h3>
+    <div id="restore-details" style="color:var(--ink-soft); font-size:0.88rem; margin-bottom:1rem;"></div>
+    <div class="actions" style="justify-content:center;">
+      <button class="primary" id="btn-restore-yes">Resume</button>
+      <button class="ghost" id="btn-restore-no">Discard, start fresh</button>
+    </div>
+  </div>
+  <div class="empty-state" id="empty-state">
+    <div class="glyph">Q</div>
+    <div>Your generated quiz will appear here.</div>
+  </div>
+
+
+  <!-- PRACTICE MODE -->
+  <div id="practice-screen" class="hidden"></div>
+</div>
+
+<script>
+// ===================== CONFIG =====================
+const QUESTION_TYPES = [
+  {key:'standard_mcq', label:'Standard MCQ', desc:'4-option multiple choice'},
+  {key:'match_following', label:'Match the Following', desc:'Match items in List I to List II'},
+  {key:'two_statement', label:'2-Statement', desc:'Evaluate two statements, pick which are true'},
+  {key:'multi_statement', label:'Multiple Statements', desc:'Evaluate 3+ statements, pick which are true'},
+  {key:'chronological', label:'Chronological Order', desc:'Arrange events/items in correct sequence'},
+  {key:'assertion_reason', label:'Assertion & Reasoning', desc:'Assertion (A) and Reason (R), evaluate both'},
+  {key:'pairing', label:'Pairing', desc:'Match pairs, choose the correctly paired option'}
+];
+const BATCH_SIZE_KANNADA = 6; // Kannada script costs many more output tokens per question, so batches are smaller to avoid truncation
+const BATCH_SIZE = 12; // questions generated per API call — kept modest since complex types (match-the-following, assertion-reasoning etc) use verbose JSON and can otherwise hit the output token limit mid-response
+
+let currentMode = 'text';
+let currentQuiz = null; // { title, questions: [...] } — questions have a `qtype` field
+let currentQuizSourceMode = null; // which input mode ('topic', 'text', etc) produced currentQuiz — used to decide when "Generate more on this topic" applies
+let currentQuizTopicText = null;  // the exact topic string used, so we only offer continuation when it still matches what's typed
+let pendingImageBase64 = null, pendingImageMediaType = null;
+let apiKey = '';
+let practiceState = null; // { index, answers: [], quiz }
+
+// ===================== SETTINGS =====================
+const STORAGE_KEY = 'quizforge_gemini_key';
+const QUIZ_STORAGE_KEY = 'quizforge_saved_quiz'; // persists the current quiz + practice progress so a closed tab isn't lost work
+
+// On load: if a key was previously remembered on this device, use it automatically
+(function loadSavedKey(){
+  try{
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if(saved){
+      apiKey = saved;
+      document.getElementById('input-remember-key').checked = true;
+      document.getElementById('key-status').textContent = '✓ Using saved key from this device';
+    }
+  }catch(e){ /* localStorage unavailable — key just won't persist, no functional break */ }
+})();
+
+document.getElementById('btn-settings').addEventListener('click', ()=>{
+  document.getElementById('settings-panel').classList.toggle('hidden');
+});
+document.getElementById('btn-save-key').addEventListener('click', ()=>{
+  const val = document.getElementById('input-apikey').value.trim();
+  if(!val && !apiKey){ document.getElementById('key-status').textContent = 'Enter a key first.'; return; }
+  if(val) apiKey = val; // if left as the masked placeholder from a previous save, keep the existing key
+  const remember = document.getElementById('input-remember-key').checked;
+  try{
+    if(remember) localStorage.setItem(STORAGE_KEY, apiKey);
+    else localStorage.removeItem(STORAGE_KEY);
+  }catch(e){ /* ignore storage errors, key still works for this session via the in-memory apiKey variable */ }
+  document.getElementById('key-status').textContent = remember ? '✓ Saved on this device' : '✓ Saved for this session';
+  document.getElementById('input-apikey').value = '••••••••••••••••';
+});
+document.getElementById('btn-forget-key').addEventListener('click', ()=>{
+  apiKey = '';
+  try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+  document.getElementById('input-apikey').value = '';
+  document.getElementById('input-remember-key').checked = false;
+  document.getElementById('key-status').textContent = 'Saved key forgotten.';
+});
+
+// ===================== FONT SIZE =====================
+// Scales the whole page by changing the root font size (all sizing in the app is rem-based).
+const FONT_KEY = 'quizforge_font_pct';
+const FONT_MIN = 70, FONT_MAX = 160, FONT_STEP = 10;
+let fontPct = 100;
+try{ const saved = parseInt(localStorage.getItem(FONT_KEY)); if(saved >= FONT_MIN && saved <= FONT_MAX) fontPct = saved; }catch(e){}
+function applyFontSize(){
+  document.documentElement.style.fontSize = fontPct + '%';
+  document.getElementById('font-size-label').textContent = fontPct + '%';
+  document.getElementById('btn-font-down').disabled = fontPct <= FONT_MIN;
+  document.getElementById('btn-font-up').disabled = fontPct >= FONT_MAX;
+  try{ localStorage.setItem(FONT_KEY, String(fontPct)); }catch(e){}
+}
+document.getElementById('btn-font-down').addEventListener('click', ()=>{ fontPct = Math.max(FONT_MIN, fontPct - FONT_STEP); applyFontSize(); });
+document.getElementById('btn-font-up').addEventListener('click', ()=>{ fontPct = Math.min(FONT_MAX, fontPct + FONT_STEP); applyFontSize(); });
+applyFontSize();
+
+// ===================== QUIZ PERSISTENCE =====================
+// Saves the current quiz (and, if in Practice Mode, progress so far) to localStorage,
+// so closing the tab or the phone browser getting killed doesn't lose a generated quiz.
+function saveQuizToStorage(quiz){
+  try{
+    const payload = {
+      quiz,
+      practice: practiceState ? { index: practiceState.index, answers: practiceState.answers, revealed: practiceState.revealed } : null,
+      sourceMode: currentQuizSourceMode,
+      topicText: currentQuizTopicText,
+      savedAt: Date.now()
+    };
+    localStorage.setItem(QUIZ_STORAGE_KEY, JSON.stringify(payload));
+  }catch(e){ /* storage full or unavailable — quiz still works for this session, just won't survive a reload */ }
+}
+function loadQuizFromStorage(){
+  try{
+    const raw = localStorage.getItem(QUIZ_STORAGE_KEY);
+    if(!raw) return null;
+    return JSON.parse(raw);
+  }catch(e){ return null; }
+}
+function clearSavedQuiz(){
+  try{ localStorage.removeItem(QUIZ_STORAGE_KEY); }catch(e){}
+}
+
+// ===================== TABS =====================
+const MODES = ['text','topic','pdf','htmltxt','url','image'];
+document.getElementById('tabs').addEventListener('click', (e)=>{
+  const tab = e.target.closest('.tab');
+  if(!tab) return;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  tab.classList.add('active');
+  currentMode = tab.dataset.mode;
+  MODES.forEach(m=>document.getElementById('panel-'+m).classList.toggle('hidden', m!==currentMode));
+  if(currentMode === 'topic') updateTopicContinueVisibility();
+});
+
+// ===================== QUESTION TYPE TABLE =====================
+const qtypeBody = document.getElementById('qtype-body');
+QUESTION_TYPES.forEach((t,i)=>{
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td><strong>${t.label}</strong></td><td class="desc">${t.desc}</td>
+    <td><input type="number" min="0" max="200" value="${i===0?10:0}" class="qtype-count" data-key="${t.key}"></td>`;
+  qtypeBody.appendChild(tr);
+});
+function updateQtypeTotal(){
+  const total = parseInt(document.getElementById('input-total').value) || 0;
+  let assigned = 0;
+  document.querySelectorAll('.qtype-count').forEach(inp=>assigned += (parseInt(inp.value)||0));
+  const label = document.getElementById('qtype-total-label');
+  const wrap = document.getElementById('qtype-total');
+  label.textContent = assigned + ' of ' + total + ' questions assigned';
+  wrap.classList.toggle('over', assigned !== total);
+}
+document.getElementById('input-total').addEventListener('input', updateQtypeTotal);
+qtypeBody.addEventListener('input', updateQtypeTotal);
+document.getElementById('btn-autofill').addEventListener('click', ()=>{
+  const total = parseInt(document.getElementById('input-total').value) || 0;
+  let assigned = 0;
+  document.querySelectorAll('.qtype-count').forEach(inp=>assigned += (parseInt(inp.value)||0));
+  const remaining = total - assigned;
+  if(remaining > 0){
+    const mcqInput = document.querySelector('.qtype-count[data-key="standard_mcq"]');
+    mcqInput.value = (parseInt(mcqInput.value)||0) + remaining;
+  }
+  updateQtypeTotal();
+});
+updateQtypeTotal();
+
+// ===================== FILE INPUTS =====================
+// PDF/DOCX
+const dzPdf = document.getElementById('dropzone-pdf');
+const inPdf = document.getElementById('input-pdf');
+let pdfExtractedText = '';
+let reviewedPyqText = ''; // set once the user confirms "Use these as source" on found/edited PYQs; cleared whenever the topic text changes
+dzPdf.addEventListener('click', ()=>inPdf.click());
+dzPdf.addEventListener('dragover', e=>{e.preventDefault(); dzPdf.classList.add('drag');});
+dzPdf.addEventListener('dragleave', ()=>dzPdf.classList.remove('drag'));
+dzPdf.addEventListener('drop', e=>{ e.preventDefault(); dzPdf.classList.remove('drag'); if(e.dataTransfer.files.length) handlePdfFile(e.dataTransfer.files[0]); });
+inPdf.addEventListener('change', e=>{ if(e.target.files.length) handlePdfFile(e.target.files[0]); });
+async function handlePdfFile(file){
+  document.getElementById('filename-pdf').textContent = 'Reading ' + file.name + ' …';
+  try{
+    if(file.name.toLowerCase().endsWith('.docx')){
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({arrayBuffer});
+      pdfExtractedText = result.value;
+    } else {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+      let text = '';
+      for(let i=1;i<=pdf.numPages;i++){
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        text += content.items.map(it=>it.str).join(' ') + '\n';
+      }
+      pdfExtractedText = text;
+    }
+    document.getElementById('filename-pdf').textContent = '✓ ' + file.name + ' (' + pdfExtractedText.length.toLocaleString() + ' characters)';
+  }catch(err){
+    document.getElementById('filename-pdf').textContent = 'Could not read ' + file.name + ': ' + err.message;
+    pdfExtractedText = '';
+  }
+}
+
+// HTML/TXT
+const dzHt = document.getElementById('dropzone-htmltxt');
+const inHt = document.getElementById('input-htmltxt');
+let htmltxtExtractedText = '';
+dzHt.addEventListener('click', ()=>inHt.click());
+dzHt.addEventListener('dragover', e=>{e.preventDefault(); dzHt.classList.add('drag');});
+dzHt.addEventListener('dragleave', ()=>dzHt.classList.remove('drag'));
+dzHt.addEventListener('drop', e=>{ e.preventDefault(); dzHt.classList.remove('drag'); if(e.dataTransfer.files.length) handleHtmlTxtFile(e.dataTransfer.files[0]); });
+inHt.addEventListener('change', e=>{ if(e.target.files.length) handleHtmlTxtFile(e.target.files[0]); });
+async function handleHtmlTxtFile(file){
+  document.getElementById('filename-htmltxt').textContent = 'Reading ' + file.name + ' …';
+  try{
+    const raw = await file.text();
+    if(file.name.toLowerCase().match(/\.html?$/)){
+      const doc = new DOMParser().parseFromString(raw, 'text/html');
+      doc.querySelectorAll('script,style').forEach(el=>el.remove());
+      htmltxtExtractedText = doc.body ? doc.body.innerText : raw;
+    } else {
+      htmltxtExtractedText = raw;
+    }
+    document.getElementById('filename-htmltxt').textContent = '✓ ' + file.name + ' (' + htmltxtExtractedText.length.toLocaleString() + ' characters)';
+  }catch(err){
+    document.getElementById('filename-htmltxt').textContent = 'Could not read ' + file.name + ': ' + err.message;
+    htmltxtExtractedText = '';
+  }
+}
+
+// Image
+const dzImg = document.getElementById('dropzone-image');
+const inImg = document.getElementById('input-image');
+dzImg.addEventListener('click', ()=>inImg.click());
+dzImg.addEventListener('dragover', e=>{e.preventDefault(); dzImg.classList.add('drag');});
+dzImg.addEventListener('dragleave', ()=>dzImg.classList.remove('drag'));
+dzImg.addEventListener('drop', e=>{ e.preventDefault(); dzImg.classList.remove('drag'); if(e.dataTransfer.files.length) handleImageFile(e.dataTransfer.files[0]); });
+inImg.addEventListener('change', e=>{ if(e.target.files.length) handleImageFile(e.target.files[0]); });
+function handleImageFile(file){
+  pendingImageMediaType = file.type || 'image/png';
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    pendingImageBase64 = reader.result.split(',')[1];
+    document.getElementById('filename-image').textContent = '✓ ' + file.name;
+    const prev = document.getElementById('preview-image');
+    prev.src = reader.result;
+    prev.classList.remove('hidden');
+  };
+  reader.readAsDataURL(file);
+}
+
+// ===================== STATUS =====================
+function setStatus(msg, isErr){
+  const el = document.getElementById('status');
+  el.classList.remove('hidden');
+  el.classList.toggle('err', !!isErr);
+  el.innerHTML = isErr ? msg : '<div class="spinner"></div>' + msg;
+}
+function clearStatus(){ document.getElementById('status').classList.add('hidden'); }
+
+// ===================== GATHER SOURCE =====================
+// Extracts readable text from a URL's HTML. Most sites block direct cross-origin
+// fetch() from a browser (CORS), so this tries a direct fetch first, then falls back
+// to a read-only public CORS proxy that re-serves the page with permissive headers.
+function htmlToReadableText(html){
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  doc.querySelectorAll('script,style,nav,footer,header,noscript,iframe').forEach(el=>el.remove());
+  return doc.body ? doc.body.innerText : '';
+}
+
+async function fetchPageText(url){
+  // Attempt 1: direct fetch — works for sites with permissive CORS headers
+  try{
+    const res = await fetch(url, {mode:'cors'});
+    if(res.ok){
+      const text = htmlToReadableText(await res.text());
+      if(text.trim()) return text;
+    }
+  }catch(e){ /* CORS-blocked or network error — fall through to proxy */ }
+
+  // Attempt 2: read-only CORS proxy (r.jina.ai serves a clean text/markdown extraction of the page)
+  try{
+    setStatus('Direct fetch was blocked by the site — retrying via reader proxy…');
+    const proxyUrl = 'https://r.jina.ai/' + url;
+    const res = await fetch(proxyUrl);
+    if(res.ok){
+      const text = await res.text();
+      if(text.trim()) return text;
+    }
+  }catch(e){ /* proxy also failed — will fall through to final error below */ }
+
+  return '';
+}
+
+async function gatherSource(){
+  switch(currentMode){
+    case 'text': {
+      const t = document.getElementById('input-text').value.trim();
+      if(!t) throw new Error('Paste some text first.');
+      return {type:'text', content:t};
+    }
+    case 'topic': {
+      const t = document.getElementById('input-topic').value.trim();
+      if(!t) throw new Error('Enter a topic first.');
+      if(reviewedPyqText.trim()){
+        return {type:'text', content: `Topic: ${t}\n\nThe following are REAL past-year exam questions (PYQs) found on this topic. Use them as your primary reference for style, difficulty, and factual content — write NEW questions that are similar in spirit and content coverage to these, not copies of them:\n\n${reviewedPyqText}`};
+      }
+      return {type:'text', content:'Topic: ' + t + '\n(No source PYQs provided — use accurate general knowledge of this topic.)'};
+    }
+    case 'pdf': {
+      if(!pdfExtractedText.trim()) throw new Error('Upload a PDF or DOCX first.');
+      return {type:'text', content: pdfExtractedText};
+    }
+    case 'htmltxt': {
+      if(!htmltxtExtractedText.trim()) throw new Error('Upload an HTML or TXT file first.');
+      return {type:'text', content: htmltxtExtractedText};
+    }
+    case 'url': {
+      const u = document.getElementById('input-url').value.trim();
+      if(!u) throw new Error('Enter a URL first.');
+      let parsed;
+      try{ parsed = new URL(u); }catch(e){ throw new Error('That doesn\'t look like a valid URL — include https:// at the start.'); }
+
+      setStatus('Fetching page content…');
+      const text = await fetchPageText(parsed.href);
+      if(!text || !text.trim()) throw new Error('Could not extract readable text from that page. Some sites block this, or need JavaScript to show content. Try copy-pasting the article text into the Text tab instead.');
+      return {type:'text', content: text.slice(0, 40000)};
+    }
+    case 'image': {
+      if(!pendingImageBase64) throw new Error('Upload an image first.');
+      return {type:'image', base64: pendingImageBase64, mediaType: pendingImageMediaType};
+    }
+  }
+}
+
+// ===================== PROMPT BUILDING =====================
+function typeSchemaAndInstructions(key){
+  switch(key){
+    case 'standard_mcq':
+      return `"standard_mcq": {"qtype":"standard_mcq","question":"...", "options":["A text","B text","C text","D text"], "correctIndex":0, "explanation":"..."}`;
+    case 'match_following':
+      return `"match_following": {"qtype":"match_following","question":"instruction text e.g. Match List I with List II", "listI":["item1","item2","item3","item4"], "listII":["match1","match2","match3","match4"], "options":["A) 1-ii,2-iv,3-i,4-iii","B) ...","C) ...","D) ..."], "correctIndex":0, "explanation":"..."} — listI and listII entries are labelled with numerals/roman numerals inside the option text.`;
+    case 'two_statement':
+      return `"two_statement": {"qtype":"two_statement","question":"context if any","statements":["Statement I: ...","Statement II: ..."], "options":["Both I and II are true","Only I is true","Only II is true","Both are false"], "correctIndex":0, "explanation":"..."}`;
+    case 'multi_statement':
+      return `"multi_statement": {"qtype":"multi_statement","question":"context if any","statements":["I. ...","II. ...","III. ..."], "options":["I and II only","II and III only","I, II and III","None"], "correctIndex":0, "explanation":"..."} — use 3 to 5 statements.`;
+    case 'chronological':
+      return `"chronological": {"qtype":"chronological","question":"Arrange the following in chronological order:","items":["Event A","Event B","Event C","Event D"], "options":["A) A-B-C-D","B) B-A-C-D","C) C-A-B-D","D) D-C-B-A"], "correctIndex":0, "explanation":"..."}`;
+    case 'assertion_reason':
+      return `"assertion_reason": {"qtype":"assertion_reason","assertion":"Assertion (A): ...","reason":"Reason (R): ...", "options":["Both A and R are true and R is the correct explanation of A","Both A and R are true but R is NOT the correct explanation of A","A is true but R is false","A is false but R is true"], "correctIndex":0, "explanation":"..."}`;
+    case 'pairing':
+      return `"pairing": {"qtype":"pairing","question":"context e.g. Consider the following pairs:","pairs":["Item 1 : Related fact 1","Item 2 : Related fact 2","Item 3 : Related fact 3"], "options":["A) 1 and 2 only","B) 2 and 3 only","C) All are correctly paired","D) None are correctly paired"], "correctIndex":0, "explanation":"..."} — some pairs in the list should be deliberately WRONG so the question is meaningful.`;
+  }
+}
+
+function buildBatchPrompt(typeCounts, difficulty, startNumber, avoidList, language){
+  const langInstruction = (language === 'kannada')
+    ? 'LANGUAGE: Write the ENTIRE quiz in Kannada (ಕನ್ನಡ script) only — every question, lead-in, statement, assertion, reason, list item, pair, option and explanation. Do NOT include English translations or English text alongside. This also applies to the stock option wordings shown in the shapes below (e.g. \"Both I and II are true\", \"I and II only\", \"Both A and R are true...\") — translate them into natural Kannada as used in KEA/KPSC question papers. Keep only the JSON keys, the \"qtype\" values, and option label letters (A, B, C, D) in English. Use standard Kannada exam terminology; for technical terms with no common Kannada equivalent, write the term in Kannada script (transliterated) rather than in English letters. Digits may stay as Arabic numerals.'
+    : 'Write everything in English only. Do not include any translations.';
+
+  const typeLines = typeCounts.filter(t=>t.count>0).map(t=>{
+    const info = QUESTION_TYPES.find(q=>q.key===t.key);
+    return `- ${t.count} question(s) of type "${t.key}" (${info.label}: ${info.desc})`;
+  }).join('\n');
+
+  const schemas = typeCounts.filter(t=>t.count>0).map(t=>typeSchemaAndInstructions(t.key)).join('\n');
+
+  const avoidBlock = (avoidList && avoidList.length > 0)
+    ? `\nIMPORTANT — DO NOT REPEAT: The following questions have ALREADY been asked in this quiz. Do not generate the same question again, do not merely reword one of them, and do not test the exact same narrow fact from a different angle. Cover genuinely different facts, sub-topics, or angles from the source content instead:\n${avoidList.map((q,i)=>(i+1)+'. '+q).join('\n')}\n`
+    : '';
+
+  return `You are an expert exam-question writer for competitive government exams in India. Generate a batch of ${difficulty}-difficulty quiz questions based on the source content provided.
+
+Generate exactly this mix:
+${typeLines}
+
+${langInstruction}
+
+Each question type has its own JSON shape. Use exactly these shapes depending on qtype:
+${schemas}
+
+STATEMENT-STYLE QUESTIONS: every statement, pair, item, assertion and reason must be its OWN separate string element in its array/field. Never merge two statements into one string, never put "Statement I ... Statement II ..." inside the "question" field, and never use line breaks to join several statements. The "question" field holds only the short lead-in instruction (e.g. "Consider the following statements:"), or can be left as an empty string.
+EXPLANATIONS: write each "explanation" as short separate points, one point per line, separated by "\\n" inside the JSON string (e.g. "Point one.\\nPoint two.\\nPoint three."). For statement-based questions, give one point per statement saying why it is true or false, then a final point with the conclusion. No bullets or numbering characters.
+${avoidBlock}
+Respond with ONLY a raw JSON object, no markdown fences, no preamble, in exactly this shape:
+{"questions": [ <question objects as specified above, mixed in any order, each with its correct "qtype" field> ]}
+
+Base every question strictly on the source content given (or, for a bare topic with no source text, on accurate general knowledge). Do not invent facts not supported by the source. Vary which option index is correct across questions. Spread questions across different facts, sections, or sub-topics of the source rather than clustering on the same point repeatedly.`;
+}
+
+// ===================== GEMINI API CALL =====================
+// Searches the web for real past-year-question style content on a topic, using Gemini's
+// Google Search grounding tool. Unlike callGemini (which asks the model to WRITE questions),
+// this asks it to FIND and quote real ones, with citations. Returns {text, sources}.
+// Gemini's 429 responses include structured detail about WHICH quota was exceeded
+// (requests-per-minute, tokens-per-minute, tokens-per-day, etc.) and often a retryDelay.
+// Reading that instead of assuming "you're on the free tier" avoids giving a paid-tier
+// user a misleading message when their 429 is actually a different, narrower limit.
+// Returns {message, retryDelayMs} — retryDelayMs is null when Google didn't supply one.
+function parseRateLimitError(errText){
+  try{
+    const parsed = JSON.parse(errText);
+    const message = (parsed.error && parsed.error.message) || '';
+    const details = (parsed.error && parsed.error.details) || [];
+    const quotaDetail = details.find(d => d['@type'] && d['@type'].includes('QuotaFailure'));
+    const retryDetail = details.find(d => d['@type'] && d['@type'].includes('RetryInfo'));
+    let quotaId = quotaDetail && quotaDetail.violations && quotaDetail.violations[0] && quotaDetail.violations[0].quotaId;
+    let retryDelayRaw = retryDetail && retryDetail.retryDelay; // e.g. "13s"
+
+    let retryDelayMs = null;
+    if(retryDelayRaw){
+      const secMatch = String(retryDelayRaw).match(/^([\d.]+)s$/);
+      if(secMatch) retryDelayMs = Math.ceil(parseFloat(secMatch[1]) * 1000);
+    }
+
+    let msg = 'Rate limit hit (429)';
+    if(quotaId) msg += ': ' + quotaId;
+    else if(message) msg += ': ' + message.slice(0,150);
+    if(retryDelayRaw) msg += `. Retry after ${retryDelayRaw}.`;
+    else msg += '. Wait a bit and try again.';
+    return { message: msg, retryDelayMs };
+  }catch(e){
+    // response wasn't JSON, or didn't match the expected shape — fall back to showing it raw
+    return { message: 'Rate limit hit (429). Raw response: ' + errText.slice(0,200), retryDelayMs: null };
+  }
+}
+// Message-only convenience wrapper, used where only the text is needed (existing call sites).
+function describeRateLimitError(errText){
+  return parseRateLimitError(errText).message;
+}
+
+function sleep(ms){ return new Promise(resolve => setTimeout(resolve, ms)); }
+
+async function findPyqsForTopic(topic, examFocus, examCategory){
+  if(!apiKey) throw new Error('Add your Gemini API key first (top right — "API Key" button).');
+
+  const defaultScopes = {
+    agriculture: 'Indian agricultural competitive exams — including state Agricultural Officer (AO) and Assistant Agricultural Officer (AAO) exams from any Indian state (e.g. Karnataka KEA AO/AAO, and equivalent exams in other states), state Agricultural Development Officer (ADO/ADA) exams, ICAR JRF (Junior Research Fellowship) and ICAR SRF (Senior Research Fellowship) exams, and MSc/PhD entrance exams at Indian agricultural universities (e.g. UAS Bangalore, UAS Dharwad, IARI, and other State Agricultural Universities)',
+    general: 'Indian competitive government exams — including UPSC CSE (Prelims and Mains), UPSC CDS, UPSC CAPF, KEA, KPSC, SSC (CGL, CHSL, and other SSC exams), and state PCS exams from any Indian state (e.g. UPPCS, BPSC, MPPCS, RPSC, WBPSC, and others)'
+  };
+  const category = (examCategory === 'general') ? 'general' : 'agriculture'; // agriculture is the default
+  const examScope = (examFocus && examFocus.trim()) ? examFocus.trim() : defaultScopes[category];
+
+  const searchNote = category === 'agriculture'
+    ? 'Search across ALL of the exams listed above, not just one — look for this topic in state AO/AAO papers from different states, ADA/ADO papers, ICAR JRF, ICAR SRF, and agricultural university MSc entrance papers. Include results from as many of these different exams as you can genuinely find, not just whichever comes up first.'
+    : 'Search across ALL of the exams listed above, not just one — look for this topic in UPSC CSE prelims/mains papers, UPSC CDS, UPSC CAPF, SSC exams, KEA, KPSC, and state PCS exams from different states. Include results from as many of these different exams as you can genuinely find, not just whichever comes up first.';
+
+  const citationExamples = category === 'agriculture'
+    ? '"Karnataka KEA AO 2022", "ICAR JRF 2021", "UAS Dharwad MSc Entrance 2020", "Bihar ADA 2019"'
+    : '"UPSC CSE Prelims 2021", "SSC CGL 2019", "KPSC 2020", "BPSC 2022"';
+
+  const searchPrompt = `Search the web for real past-year exam questions (PYQs) on the topic "${topic}", from these exams: ${examScope}.
+
+${searchNote}
+
+Find as many genuine, verbatim past questions as you can on this exact topic — not questions you write yourself. For each one found, quote the actual question text and its options if available, and clearly label which exact exam, state (if applicable), and year it's from (e.g. ${citationExamples}) so questions from different exams aren't mixed up without attribution.
+
+Format your response as a plain numbered list, one question per entry, grouped or labelled by exam so it's clear which exam each question came from. If you cannot find real PYQs on this specific topic from a given exam, skip that exam rather than making questions up — only include what you can genuinely verify was asked.`;
+
+  const model = 'gemini-2.5-flash';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+  const response = await fetch(url, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      contents: [{ role:'user', parts: [{ text: searchPrompt }] }],
+      tools: [{ google_search: {} }],
+      generationConfig: { maxOutputTokens: 6000, thinkingConfig: { thinkingBudget: 0 } }
+    })
+  });
+
+  if(!response.ok){
+    const errText = await response.text();
+    if(response.status === 400 && errText.includes('API_KEY_INVALID')) throw new Error('That API key was rejected. Check it was copied correctly from aistudio.google.com/apikey.');
+    if(response.status === 400) throw new Error('The search request was rejected (400): ' + errText.slice(0,200));
+    if(response.status === 403) throw new Error('That API key was rejected, or your key doesn\'t have Search grounding enabled (403).');
+    if(response.status === 429) throw new Error(describeRateLimitError(errText));
+    throw new Error('PYQ search failed (' + response.status + '): ' + errText.slice(0,200));
+  }
+  const data = await response.json();
+  if(!data.candidates || data.candidates.length === 0){
+    throw new Error('The search returned no results at all — this can happen if the topic is too obscure to find real PYQs on, or if the request was blocked. Raw response: ' + JSON.stringify(data).slice(0,300));
+  }
+  const candidate = data.candidates[0];
+  const finishReason = candidate.finishReason;
+  const parts = (candidate.content && candidate.content.parts) || [];
+
+  // A grounded search response can legitimately come back as several text parts (answer text,
+  // separate citation segments, etc.) — concatenating ALL of them (not just the first, as an
+  // earlier version of this did) is what was causing search results to appear empty or cut off.
+  const textParts = parts.filter(p=>p.text).map(p=>p.text);
+  const combinedText = textParts.join('\n');
+
+  if(!combinedText.trim()){
+    if(finishReason === 'MAX_TOKENS') throw new Error('The search response was cut off before returning any content (ran out of output length). Try a more specific topic.');
+    if(finishReason === 'SAFETY' || finishReason === 'RECITATION') throw new Error('The search response was blocked (reason: ' + finishReason + '). Try rephrasing the topic.');
+    throw new Error('No results text came back from the search (finishReason: ' + (finishReason||'unknown') + '). This can happen if the model decided not to search — try being more specific about the topic or exam.');
+  }
+
+  // groundingMetadata carries the real source URLs Gemini actually grounded on, when present.
+  // Note: it can legitimately be empty even on a successful search — Gemini doesn't always
+  // attach grounding chunks even when it did search, so an empty sources list here isn't itself an error.
+  const groundingChunks = (candidate.groundingMetadata && candidate.groundingMetadata.groundingChunks) || [];
+  const sources = groundingChunks.map(c => c.web ? { title: c.web.title, url: c.web.uri } : null).filter(Boolean);
+
+  return { text: combinedText, sources, _truncated: finishReason === 'MAX_TOKENS' };
+}
+
+async function callGemini(source, systemPrompt){
+  if(!apiKey) throw new Error('Add your Gemini API key first (top right — "API Key" button).');
+
+  let userParts;
+  if(source.type === 'image'){
+    userParts = [
+      {inline_data: {mime_type: source.mediaType, data: source.base64}},
+      {text: 'Generate the quiz batch from this image, following the system instructions exactly.'}
+    ];
+  } else {
+    userParts = [{text: 'SOURCE CONTENT:\n\n' + source.content}];
+  }
+
+  const model = 'gemini-2.5-flash';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+  const response = await fetch(url, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ role:'user', parts: userParts }],
+      generationConfig: { maxOutputTokens: 16000, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 0 } }
+    })
+  });
+
+  if(!response.ok){
+    const errText = await response.text();
+    if(response.status === 400 && errText.includes('API_KEY_INVALID')) throw new Error('That API key was rejected. Check it was copied correctly from aistudio.google.com/apikey.');
+    if(response.status === 403) throw new Error('That API key was rejected (403). Check it was copied correctly.');
+    if(response.status === 429){
+      const info = parseRateLimitError(errText);
+      const err = new Error(info.message);
+      err.isRateLimit = true;
+      err.retryDelayMs = info.retryDelayMs;
+      throw err;
+    }
+    throw new Error('Generation failed (' + response.status + '): ' + errText.slice(0,200));
+  }
+  const data = await response.json();
+  const candidate = data.candidates && data.candidates[0];
+  const finishReason = candidate && candidate.finishReason;
+  const textBlock = candidate && candidate.content && candidate.content.parts && candidate.content.parts.find(p=>p.text);
+  if(!textBlock){
+    if(finishReason === 'MAX_TOKENS') throw new Error('The response was cut off (ran out of output length) before any content was returned. Try a smaller batch of questions per type.');
+    throw new Error('No text returned from the model' + (finishReason ? ' (finishReason: ' + finishReason + ')' : '') + '.');
+  }
+
+  let cleaned = textBlock.text.trim().replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/```\s*$/,'');
+  try{
+    return JSON.parse(cleaned);
+  } catch(e){
+    if(finishReason === 'MAX_TOKENS'){
+      // Response was truncated mid-JSON. Try to salvage complete question objects from what we got.
+      const recovered = recoverPartialQuestions(cleaned);
+      if(recovered.length > 0) return { questions: recovered, _truncated: true };
+      throw new Error('The response was cut off before completing (ran out of output length), and none of it could be recovered. Try requesting fewer questions of this type in one batch.');
+    }
+    throw new Error('Could not parse a batch of the generated quiz. Raw response started with: ' + cleaned.slice(0,150));
+  }
+}
+
+// When a response is truncated mid-array, this pulls out whatever complete {...} question objects
+// appear before the cutoff, so a partial batch still contributes usable questions instead of failing outright.
+// Validates a single generated question against its qtype's required shape.
+// Returns null if valid, or a short reason string if the question should be dropped.
+// This exists because the model occasionally returns a correctIndex out of range,
+// a missing field, or an empty options array — any of which would otherwise crash
+// the PDF/table renderers or silently show a blank "correct answer" to the user.
+function validateQuestion(q){
+  if(!q || typeof q !== 'object') return 'not an object';
+  if(!q.qtype || !QUESTION_TYPES.find(t=>t.key===q.qtype)) return 'unknown or missing qtype';
+  if(typeof q.correctIndex !== 'number' || !Number.isInteger(q.correctIndex) || q.correctIndex < 0) return 'invalid correctIndex';
+  if(!q.explanation || typeof q.explanation !== 'string' || !q.explanation.trim()) return 'missing explanation';
+
+  switch(q.qtype){
+    case 'standard_mcq':
+    case 'two_statement':
+    case 'multi_statement':
+    case 'chronological':
+    case 'assertion_reason':
+    case 'pairing': {
+      if(!Array.isArray(q.options) || q.options.length < 2) return 'options missing or too short';
+      if(q.correctIndex >= q.options.length) return 'correctIndex out of range for options';
+      if(q.options.some(o=>typeof o !== 'string' || !o.trim())) return 'an option is empty or not text';
+      break;
+    }
+    case 'match_following': {
+      if(!Array.isArray(q.listI) || !Array.isArray(q.listII) || q.listI.length === 0 || q.listII.length === 0) return 'listI/listII missing or empty';
+      if(!Array.isArray(q.options) || q.options.length < 2) return 'options missing or too short';
+      if(q.correctIndex >= q.options.length) return 'correctIndex out of range for options';
+      break;
+    }
+  }
+  // type-specific required text fields
+  if(q.qtype === 'assertion_reason' && (!q.assertion || !q.reason)) return 'missing assertion or reason text';
+  if((q.qtype === 'two_statement' || q.qtype === 'multi_statement') && (!Array.isArray(q.statements) || q.statements.length === 0)) return 'missing statements';
+  if(q.qtype === 'chronological' && (!Array.isArray(q.items) || q.items.length < 2)) return 'missing or too-short items list';
+  if(q.qtype === 'pairing' && (!Array.isArray(q.pairs) || q.pairs.length === 0)) return 'missing pairs';
+
+  return null;
+}
+
+// Filters a batch of raw questions from the model, dropping invalid ones.
+// Returns {valid, droppedCount} so the caller can report how many were silently removed.
+function validateQuestionBatch(questions){
+  const valid = [];
+  let droppedCount = 0;
+  (questions||[]).forEach(q=>{
+    const reason = validateQuestion(q);
+    if(reason === null) valid.push(q);
+    else droppedCount++;
+  });
+  return {valid, droppedCount};
+}
+
+function recoverPartialQuestions(text){
+  const results = [];
+  const arrayStart = text.indexOf('"questions"');
+  if(arrayStart === -1) return results;
+  let i = text.indexOf('[', arrayStart);
+  if(i === -1) return results;
+  i++;
+  while(i < text.length){
+    while(i < text.length && /[\s,]/.test(text[i])) i++;
+    if(text[i] !== '{') break;
+    let depth = 0, start = i, inStr = false, esc = false;
+    for(; i < text.length; i++){
+      const c = text[i];
+      if(inStr){
+        if(esc){ esc = false; }
+        else if(c === '\\'){ esc = true; }
+        else if(c === '"'){ inStr = false; }
+        continue;
+      }
+      if(c === '"'){ inStr = true; continue; }
+      if(c === '{') depth++;
+      else if(c === '}'){ depth--; if(depth === 0){ i++; break; } }
+    }
+    if(depth !== 0) break; // unclosed object — truncation landed mid-question, stop here
+    const candidate = text.slice(start, i);
+    try{ results.push(JSON.parse(candidate)); } catch(e){ /* skip malformed fragment */ }
+  }
+  return results;
+}
+
+// ===================== BATCHED GENERATION =====================
+function splitIntoBatches(typeCounts, language){
+  // Splits the full type-count request into batches of ~BATCH_SIZE questions each,
+  // preserving the requested type ratios as closely as possible per batch.
+  const totalRequested = typeCounts.reduce((s,t)=>s+t.count,0);
+  const batchSize = (language === 'kannada') ? BATCH_SIZE_KANNADA : BATCH_SIZE;
+  const numBatches = Math.max(1, Math.ceil(totalRequested / batchSize));
+  const batches = Array.from({length:numBatches}, ()=>typeCounts.map(t=>({key:t.key, count:0})));
+
+  typeCounts.forEach((t,ti)=>{
+    let remaining = t.count;
+    let b = 0;
+    while(remaining > 0){
+      batches[b % numBatches][ti].count += 1;
+      remaining--;
+      b++;
+    }
+  });
+  return batches.filter(b => b.reduce((s,t)=>s+t.count,0) > 0);
+}
+
+async function generateFullQuiz(source, typeCounts, difficulty, seedAvoidList, language){
+  language = language || 'english';
+  const batches = splitIntoBatches(typeCounts, language);
+  let allQuestions = [];
+  let title = null;
+  let failedBatches = 0;
+  let truncatedBatches = 0;
+  const MAX_AVOID_ITEMS = 60; // cap how many prior questions we quote back, to keep later prompts from growing unbounded at high question counts
+  let droppedTotal = 0;
+  const lastErrors = []; // real error messages from failed batches, so a total failure is diagnosable instead of a generic dead end
+  const BATCH_PACING_MS = 2500; // fixed pause between successive batches — keeps sequential calls from bunching up inside the same per-minute quota window
+  const DEFAULT_RATE_LIMIT_BACKOFF_MS = 8000; // used on retry when Google's response didn't include its own retryDelay
+
+  for(let i=0;i<batches.length;i++){
+    if(i > 0) await sleep(BATCH_PACING_MS); // pace requests out instead of firing them back-to-back
+    setStatus(`Generating questions… batch ${i+1} of ${batches.length}`);
+    const ownAvoid = allQuestions.slice(-MAX_AVOID_ITEMS).map(q=>{
+      const norm = normalizeQuestion(q);
+      return norm.questionText.replace(/\n/g,' ').slice(0,140);
+    });
+    // seedAvoidList (questions from an earlier quiz being continued) always counts, on top of this run's own avoid list
+    const avoidList = (seedAvoidList||[]).concat(ownAvoid).slice(-MAX_AVOID_ITEMS);
+    const prompt = buildBatchPrompt(batches[i], difficulty, allQuestions.length+1, avoidList, language);
+    let result = null;
+    try{
+      result = await callGemini(source, prompt);
+    }catch(e){
+      // one retry on failure before giving up on this batch — transient truncation/parse issues often succeed on a second try.
+      // For a rate-limit failure specifically, wait for the delay Google actually asked for (or a sane default)
+      // before retrying, instead of hammering the API again immediately.
+      const backoffMs = e.isRateLimit ? (e.retryDelayMs || DEFAULT_RATE_LIMIT_BACKOFF_MS) : 0;
+      if(backoffMs > 0){
+        setStatus(`Batch ${i+1} of ${batches.length} hit a rate limit — waiting ${Math.ceil(backoffMs/1000)}s before retrying…`);
+        await sleep(backoffMs);
+      } else {
+        setStatus(`Batch ${i+1} of ${batches.length} had an issue — retrying…`);
+      }
+      try{
+        result = await callGemini(source, prompt);
+      }catch(e2){
+        failedBatches++;
+        lastErrors.push(e2.message || String(e2));
+        continue; // move on to the next batch rather than aborting the whole quiz
+      }
+    }
+    if(result._truncated) truncatedBatches++;
+    if(result.questions && result.questions.length){
+      const { valid, droppedCount } = validateQuestionBatch(result.questions);
+      droppedTotal += droppedCount;
+      allQuestions = allQuestions.concat(valid);
+      if(droppedCount > 0 && valid.length === 0){
+        // every question in this batch was generated but every one failed validation — worth surfacing why, since that's a different failure mode than the API call itself failing
+        lastErrors.push(`A batch returned ${droppedCount} question(s) but all failed quality checks.`);
+      }
+    }
+    if(!title && result.title) title = result.title;
+  }
+
+  if(allQuestions.length === 0){
+    const detail = lastErrors.length ? ' Last error(s): ' + [...new Set(lastErrors)].slice(0,3).join(' | ') : '';
+    throw new Error('No usable questions were generated after retrying and validation.' + detail);
+  }
+
+  let note = '';
+  if(failedBatches > 0) note += ` (${failedBatches} batch${failedBatches>1?'es':''} failed even after retry — you got ${allQuestions.length} of the requested questions)`;
+  else if(truncatedBatches > 0) note += ` (${truncatedBatches} batch${truncatedBatches>1?'es':''} were cut short and partially recovered — you got ${allQuestions.length} of the requested questions)`;
+  if(droppedTotal > 0) note += (note ? ' ' : ' ') + `(${droppedTotal} malformed question${droppedTotal>1?'s were':' was'} auto-removed during quality checks)`;
+
+  return { title: title || 'Generated Quiz', questions: allQuestions, language, _note: note };
+}
+
+// ===================== GENERATE (shared by main button and "Generate more") =====================
+// mergeIntoExisting: when true, appends the new batch onto currentQuiz.questions instead of
+// replacing it, and seeds the avoid-list with every question already in currentQuiz so the
+// new batch doesn't repeat what's already there.
+async function runGeneration({ mergeIntoExisting } = {}){
+  const total = parseInt(document.getElementById('input-total').value) || 0;
+  if(total < 1 || total > 200) throw new Error('Total questions must be between 1 and 200.');
+
+  const typeCounts = [];
+  document.querySelectorAll('.qtype-count').forEach(inp=>{
+    const c = parseInt(inp.value) || 0;
+    if(c > 0) typeCounts.push({key: inp.dataset.key, count: c});
+  });
+  const assigned = typeCounts.reduce((s,t)=>s+t.count,0);
+  if(assigned !== total) throw new Error('Question type counts (' + assigned + ') must add up to the total (' + total + ').');
+  if(typeCounts.length === 0) throw new Error('Assign at least one question type.');
+
+  const source = await gatherSource();
+  const difficulty = document.getElementById('input-difficulty').value;
+  const language = document.getElementById('input-language').value;
+
+  if(mergeIntoExisting && currentQuiz && (currentQuiz.language || 'english') !== language){
+    const existing = (currentQuiz.language || 'english') === 'kannada' ? 'Kannada' : 'English';
+    throw new Error('The existing quiz is in ' + existing + ' — set "Question language" to ' + existing + ' to add more questions to it, or uncheck "Merge" to start a new quiz.');
+  }
+
+  const seedAvoidList = (mergeIntoExisting && currentQuiz)
+    ? currentQuiz.questions.map(q=>{ const norm = normalizeQuestion(q); return norm.questionText.replace(/\n/g,' ').slice(0,140); })
+    : null;
+
+  const newQuiz = await generateFullQuiz(source, typeCounts, difficulty, seedAvoidList, language);
+
+  if(mergeIntoExisting && currentQuiz){
+    currentQuiz.questions = currentQuiz.questions.concat(newQuiz.questions);
+    // title stays as the original quiz's title when merging — the new batch is an addition, not a replacement
+    currentQuiz._note = newQuiz._note ? `Added ${newQuiz.questions.length} questions. ${newQuiz._note}` : `Added ${newQuiz.questions.length} questions.`;
+  } else {
+    currentQuiz = newQuiz;
+  }
+
+  if(currentMode === 'topic'){
+    currentQuizSourceMode = 'topic';
+    currentQuizTopicText = document.getElementById('input-topic').value.trim();
+  } else {
+    currentQuizSourceMode = currentMode;
+    currentQuizTopicText = null;
+  }
+
+  saveQuizToStorage(currentQuiz);
+  return currentQuiz;
+}
+
+// ===================== GENERATE BUTTON =====================
+document.getElementById('btn-generate').addEventListener('click', async ()=>{
+  const btn = document.getElementById('btn-generate');
+  btn.disabled = true;
+  try{
+    const quiz = await runGeneration({ mergeIntoExisting: false });
+    updateTopicContinueVisibility();
+    showLandingChoice(quiz);
+    if(quiz._note){ setStatus(quiz._note); }
+    else { clearStatus(); }
+  }catch(err){
+    setStatus(err.message, true);
+  }finally{
+    btn.disabled = false;
+  }
+});
+
+// ===================== TOPIC: GENERATE MORE / MERGE =====================
+document.getElementById('btn-generate-more').addEventListener('click', async ()=>{
+  const btn = document.getElementById('btn-generate-more');
+  btn.disabled = true;
+  try{
+    const merge = document.getElementById('input-merge-earlier').checked;
+    const quiz = await runGeneration({ mergeIntoExisting: merge });
+    updateTopicContinueVisibility();
+    showLandingChoice(quiz);
+    if(quiz._note){ setStatus(quiz._note); }
+    else { clearStatus(); }
+  }catch(err){
+    setStatus(err.message, true);
+  }finally{
+    btn.disabled = false;
+  }
+});
+
+// Shows the "Generate more on this topic" row only when the Topic tab's text still
+// matches the topic that produced the currently-loaded quiz — otherwise it's a
+// different topic and continuation/merge wouldn't make sense.
+function updateTopicContinueVisibility(){
+  const row = document.getElementById('topic-continue-row');
+  const hint = document.getElementById('topic-continue-hint');
+  const typed = document.getElementById('input-topic').value.trim();
+  const matches = currentQuiz && currentQuizSourceMode === 'topic' && currentQuizTopicText && typed && typed === currentQuizTopicText;
+  row.classList.toggle('hidden', !matches);
+  if(matches){
+    hint.textContent = `Current quiz has ${currentQuiz.questions.length} question(s) on this topic.`;
+  }
+}
+document.getElementById('input-topic').addEventListener('input', ()=>{
+  updateTopicContinueVisibility();
+  // typing a different topic invalidates any previously reviewed PYQs — force a fresh search for the new topic
+  if(reviewedPyqText){
+    reviewedPyqText = '';
+    document.getElementById('pyq-review-area').classList.add('hidden');
+  }
+});
+
+// Shows which default exam list is currently active, so it's clear what "Find real PYQs" will search
+// without needing to open findPyqsForTopic's internals.
+function updatePyqScopeHint(){
+  const category = document.querySelector('input[name="exam-category"]:checked').value;
+  const hint = document.getElementById('pyq-scope-hint');
+  hint.textContent = category === 'agriculture'
+    ? "Searches state AO/AAO, ADA/ADO, ICAR JRF/SRF, and agricultural university MSc entrance papers by default. You'll review and edit results before generating."
+    : "Searches UPSC CSE, CDS, CAPF, SSC, KEA, KPSC, and state PCS exams by default. You'll review and edit results before generating.";
+}
+document.querySelectorAll('input[name="exam-category"]').forEach(r=>r.addEventListener('change', updatePyqScopeHint));
+updatePyqScopeHint();
+
+// ===================== FIND REAL PYQs (Topic tab) =====================
+document.getElementById('btn-find-pyqs').addEventListener('click', async ()=>{
+  const btn = document.getElementById('btn-find-pyqs');
+  const topic = document.getElementById('input-topic').value.trim();
+  const examFocus = document.getElementById('input-exam-focus').value.trim();
+  const examCategory = document.querySelector('input[name="exam-category"]:checked').value;
+  if(!topic){ setStatus('Enter a topic first.', true); return; }
+  btn.disabled = true;
+  setStatus('Searching the web for real PYQs on this topic…');
+  try{
+    const result = await findPyqsForTopic(topic, examFocus, examCategory);
+    document.getElementById('pyq-review-text').value = result.text;
+    const sourcesEl = document.getElementById('pyq-sources');
+    if(result.sources.length){
+      sourcesEl.innerHTML = 'Sources: ' + result.sources.map(s=>`<a href="${s.url}" target="_blank" rel="noopener" style="color:var(--moss-deep);">${escapeHtml(s.title||s.url)}</a>`).join(', ');
+    } else {
+      sourcesEl.textContent = 'No specific source links were returned with this search.';
+    }
+    document.getElementById('pyq-review-area').classList.remove('hidden');
+    clearStatus();
+  }catch(err){
+    setStatus(err.message, true);
+  }finally{
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('btn-use-pyqs').addEventListener('click', ()=>{
+  const text = document.getElementById('pyq-review-text').value.trim();
+  if(!text){ setStatus('The PYQ text is empty — nothing to use as source.', true); return; }
+  reviewedPyqText = text;
+  setStatus('✓ Reviewed PYQs will be used as the source when you generate.');
+});
+
+// ===================== HELPERS =====================
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str == null ? '' : String(str);
+  return d.innerHTML;
+}
+function typeLabel(qtype){
+  const t = QUESTION_TYPES.find(x=>x.key===qtype);
+  return t ? t.label : qtype;
+}
+// Normalizes any question type into a flat options[]/correctIndex/questionText for uniform rendering
+function romanNumeral(n){
+  const map = ['i','ii','iii','iv','v','vi','vii','viii','ix','x'];
+  return map[n-1] || String(n);
+}
+
+function normalizeQuestion(q){
+  const letters = ['A','B','C','D','E','F'];
+  let questionText = q.question || '';
+  let options = q.options || [];
+  let matchTable = null; // {rows: [{num, left, letter, right}]} for match_following, rendered as a real table
+  let introText = q.question || '';   // lead-in line only (no statements)
+  let cards = [];                      // [{label, text}] — each statement/pair/item/assertion/reason is its own card
+
+  const defaultIntro = {
+    two_statement: 'Consider the following statements:',
+    multi_statement: 'Consider the following statements:',
+    pairing: 'Consider the following pairs:',
+    assertion_reason: 'Consider the following Assertion (A) and Reason (R):',
+    chronological: 'Arrange the following in chronological order:'
+  };
+
+  if(q.qtype === 'match_following'){
+    questionText = q.question || 'Match List I with List II:';
+    introText = questionText;
+    if(q.listI && q.listII){
+      const rowCount = Math.max(q.listI.length, q.listII.length);
+      const rows = [];
+      for(let i=0;i<rowCount;i++){
+        rows.push({
+          num: i+1,
+          left: q.listI[i] || '',
+          letter: romanNumeral(i+1),
+          right: q.listII[i] || ''
+        });
+      }
+      matchTable = rows;
+    }
+  } else if(q.qtype === 'two_statement' || q.qtype === 'multi_statement'){
+    introText = (q.question && q.question.trim()) ? q.question : defaultIntro[q.qtype];
+    cards = (q.statements||[]).map(t=>({label:'', text:String(t)}));
+  } else if(q.qtype === 'chronological'){
+    introText = (q.question && q.question.trim()) ? q.question : defaultIntro.chronological;
+    cards = (q.items||[]).map((it,i)=>({label:(i+1)+'.', text:String(it)}));
+  } else if(q.qtype === 'assertion_reason'){
+    introText = (q.question && q.question.trim()) ? q.question : defaultIntro.assertion_reason;
+    cards = [{label:'', text:String(q.assertion||'')}, {label:'', text:String(q.reason||'')}];
+  } else if(q.qtype === 'pairing'){
+    introText = (q.question && q.question.trim()) ? q.question : defaultIntro.pairing;
+    cards = (q.pairs||[]).map(t=>({label:'', text:String(t)}));
+  }
+
+  // flattened text (intro + all cards) — still used for duplicate-avoidance when generating more
+  if(cards.length){
+    questionText = introText + '\n' + cards.map(c=>(c.label?c.label+' ':'')+c.text).join('\n');
+  }
+  return {questionText, introText, cards, options, matchTable};
+}
+
+// Splits an explanation into separate points: one per line if the text has line breaks,
+// otherwise one per sentence (a split only happens before a capital letter/bracket/digit, so "e.g." and "46%" stay intact).
+function explanationPoints(text){
+  const t = String(text||'').trim();
+  if(!t) return [];
+  let parts = t.split(/\r?\n+/);
+  if(parts.length === 1){
+    parts = t.split(/(?<=[.!?])(?<!\b(?:e\.g|i\.e|vs|etc|No|Fig|Dr|Sp|spp|viz)\.)\s+(?=[A-Z(\d])/);
+  }
+  return parts.map(p=>p.replace(/^\s*(?:[-•*]|\d+[.)])\s+/, '').trim()).filter(Boolean);
+}
+function explanationHtml(text){
+  const pts = explanationPoints(text);
+  if(!pts.length) return '';
+  return `<div class="explain-card"><div class="explain-title">Explanation</div>` +
+    pts.map(p=>`<div class="explain-point">${escapeHtml(p)}</div>`).join('') + `</div>`;
+}
+function explanationPlain(text){
+  return explanationPoints(text).map(p=>'• '+p).join('\n');
+}
+
+function matchTableHtml(matchTable){
+  if(!matchTable) return '';
+  let rows = matchTable.map(r=>`<tr><td>${r.num}. ${escapeHtml(r.left)}</td><td>${r.letter}. ${escapeHtml(r.right)}</td></tr>`).join('');
+  return `<table class="match-table"><thead><tr><th>List I</th><th>List II</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function questionBodyHtml(norm){
+  if(norm.matchTable){
+    const hasExtraText = norm.questionText && norm.questionText.trim() !== 'Match List I with List II:';
+    return (hasExtraText ? `<div class="qtext">${escapeHtml(norm.questionText)}</div>` : '') + matchTableHtml(norm.matchTable);
+  }
+  let html = norm.introText ? `<div class="qtext">${escapeHtml(norm.introText)}</div>` : '';
+  if(norm.cards && norm.cards.length){
+    html += `<div class="stmt-cards">` + norm.cards.map(c=>
+      `<div class="stmt-card">${c.label ? `<span class="stmt-label">${escapeHtml(c.label)}</span>` : ''}<span>${escapeHtml(c.text)}</span></div>`
+    ).join('') + `</div>`;
+  }
+  return html;
+}
+
+// ===================== POST-GENERATION LANDING CHOICE =====================
+function showLandingChoice(quiz){
+  document.getElementById('setup-screen').classList.add('hidden');
+  document.getElementById('empty-state').classList.add('hidden');
+  const el = document.getElementById('results');
+  el.classList.remove('hidden');
+  el.innerHTML = `
+    <div class="score-card">
+      <h2 style="margin-bottom:0.4rem;">${escapeHtml(quiz.title || 'Generated Quiz')}</h2>
+      <div class="score-sub" style="margin-bottom:1.5rem;">${quiz.questions.length} questions ready — how do you want to start?</div>
+      <div class="actions" style="justify-content:center;">
+        <button class="primary choice-btn" id="btn-goto-practice">Practice Mode<span class="sub">Answer questions, no answers shown yet</span></button>
+        <button class="ghost choice-btn" id="btn-goto-key">Answer Key<span class="sub">See all correct answers now</span></button>
+      </div>
+    </div>`;
+  document.getElementById('btn-goto-practice').addEventListener('click', startPractice);
+  document.getElementById('btn-goto-key').addEventListener('click', ()=>renderQuiz(quiz));
+}
+
+// ===================== RENDER ANSWER-KEY VIEW =====================
+function renderQuiz(quiz){
+  document.getElementById('empty-state').classList.add('hidden');
+  document.getElementById('setup-screen').classList.add('hidden');
+  const el = document.getElementById('results');
+  const letters = ['A','B','C','D','E','F'];
+
+  let html = `<div class="quiz-head">
+    <div>
+      <h2>${escapeHtml(quiz.title || 'Generated Quiz')}</h2>
+      <div class="meta">${quiz.questions.length} questions · tap Edit on any question to fix wording, options, or the correct answer</div>
+    </div>
+    <div class="actions">
+      <button class="primary" id="btn-practice">Practice Mode</button>
+      <button class="ghost" id="btn-download-pdf">PDF · Answers marked</button>
+      <button class="ghost" id="btn-download-pdf-below">PDF · Answer below options</button>
+      <button class="ghost" id="btn-download-flt">Download FLT HTML</button>
+      <button class="ghost" id="btn-back-setup">Add More / Back to Setup</button>
+      <button class="ghost" id="btn-new-quiz">New Quiz</button>
+    </div>
+  </div>`;
+
+  quiz.questions.forEach((q, i)=>{
+    const norm = normalizeQuestion(q);
+    const isStructured = q.qtype === 'match_following' || q.qtype === 'assertion_reason';
+    html += `<div class="qcard" data-qindex="${i}">
+      <div class="qnum">Question ${i+1} <span class="qtype-badge">${typeLabel(q.qtype)}</span>
+        <span style="margin-left:auto; display:flex; gap:0.4rem;">
+          <button class="ghost btn-edit-q" data-idx="${i}" style="padding:0.25rem 0.7rem; font-size:0.78rem;">Edit</button>
+          <button class="ghost btn-delete-q" data-idx="${i}" style="padding:0.25rem 0.7rem; font-size:0.78rem; color:var(--error);">Delete</button>
+        </span>
+      </div>
+      ${questionBodyHtml(norm)}`;
+    norm.options.forEach((opt, j)=>{
+      const isCorrect = j === q.correctIndex;
+      html += `<div class="opt ${isCorrect?'correct':''}"><span class="letter">${letters[j]||j+1}</span><span>${escapeHtml(opt)}</span></div>`;
+    });
+    if(q.explanation) html += explanationHtml(q.explanation);
+    html += `</div>`;
+  });
+
+  el.innerHTML = html;
+  document.getElementById('btn-download-pdf').addEventListener('click', ()=>downloadPdf('marked'));
+  document.getElementById('btn-download-pdf-below').addEventListener('click', ()=>downloadPdf('below'));
+  document.getElementById('btn-download-flt').addEventListener('click', downloadFlt);
+  document.getElementById('btn-practice').addEventListener('click', startPractice);
+  document.getElementById('btn-back-setup').addEventListener('click', ()=>{
+    // non-destructive: keeps currentQuiz intact so Generate More / Merge (Topic tab) can build on it
+    document.getElementById('results').classList.add('hidden');
+    document.getElementById('setup-screen').classList.remove('hidden');
+    updateTopicContinueVisibility();
+  });
+  document.getElementById('btn-new-quiz').addEventListener('click', ()=>{
+    if(confirm('Start a new quiz? This clears the current one (download it first if you want to keep it).')){
+      clearSavedQuiz();
+      currentQuiz = null;
+      currentQuizSourceMode = null;
+      currentQuizTopicText = null;
+      document.getElementById('setup-screen').classList.remove('hidden');
+      document.getElementById('results').innerHTML = '';
+      document.getElementById('empty-state').classList.remove('hidden');
+      updateTopicContinueVisibility();
+    }
+  });
+  document.querySelectorAll('.btn-edit-q').forEach(btn=>{
+    btn.addEventListener('click', ()=>openQuestionEditor(parseInt(btn.dataset.idx)));
+  });
+  document.querySelectorAll('.btn-delete-q').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const idx = parseInt(btn.dataset.idx);
+      if(currentQuiz.questions.length <= 1){ alert('Can\'t delete the last remaining question.'); return; }
+      if(confirm('Delete Question ' + (idx+1) + '? This cannot be undone.')){
+        currentQuiz.questions.splice(idx, 1);
+        saveQuizToStorage(currentQuiz);
+        renderQuiz(currentQuiz);
+      }
+    });
+  });
+}
+
+// Opens an inline edit form for one question, replacing its card in place.
+// Simple types (standard_mcq, two/multi-statement, chronological, pairing) edit their
+// options array directly. Structured types (match_following, assertion_reason) edit
+// their flattened text view — full restructuring of list/assertion fields isn't
+// supported here, so those two types show a note explaining that limitation.
+function openQuestionEditor(idx){
+  const q = currentQuiz.questions[idx];
+  const norm = normalizeQuestion(q);
+  const card = document.querySelector(`.qcard[data-qindex="${idx}"]`);
+  if(!card) return;
+  const isStructured = q.qtype === 'match_following';
+  const listKey = {two_statement:'statements', multi_statement:'statements', pairing:'pairs', chronological:'items'}[q.qtype];
+  const listLabel = {statements:'Statements', pairs:'Pairs', items:'Items (in the order shown)'}[listKey] || '';
+
+  let html = `<div class="qnum">Editing Question ${idx+1} <span class="qtype-badge">${typeLabel(q.qtype)}</span></div>`;
+
+  if(isStructured){
+    html += `<div style="font-size:0.8rem; color:var(--ink-soft); margin:0.4rem 0 0.6rem;">
+      This question type has a structured List I / List II layout that can't be fully re-edited here yet — you can still edit the options, correct answer, and explanation below. To change the list items themselves, delete and regenerate this question.
+    </div>`;
+  } else if(q.qtype === 'assertion_reason'){
+    html += `<div class="field"><label>Assertion (A)</label><textarea id="edit-assertion" style="min-height:55px;">${escapeHtml(q.assertion||'')}</textarea></div>`;
+    html += `<div class="field"><label>Reason (R)</label><textarea id="edit-reason" style="min-height:55px;">${escapeHtml(q.reason||'')}</textarea></div>`;
+  } else if(listKey){
+    html += `<div class="field"><label>Lead-in line (optional)</label><input type="text" id="edit-qtext" value="${escapeHtml(q.question||'')}"></div>`;
+    html += `<div class="field"><label>${listLabel} — one per box</label>`;
+    (q[listKey]||[]).forEach((t,k)=>{
+      html += `<textarea class="edit-card-item" data-idx="${k}" style="min-height:50px; margin-bottom:0.4rem;">${escapeHtml(t)}</textarea>`;
+    });
+    html += `</div>`;
+  } else {
+    html += `<div class="field"><label>Question text</label><textarea id="edit-qtext" style="min-height:70px;">${escapeHtml(norm.questionText)}</textarea></div>`;
+  }
+
+  html += `<div class="field"><label>Options (mark the correct one)</label>`;
+  norm.options.forEach((opt,j)=>{
+    html += `<div style="display:flex; gap:0.5rem; align-items:center; margin-bottom:0.4rem;">
+      <input type="radio" name="edit-correct" value="${j}" ${j===q.correctIndex?'checked':''} style="width:auto; flex-shrink:0;">
+      <input type="text" class="edit-option" data-idx="${j}" value="${escapeHtml(opt)}" style="flex:1;">
+    </div>`;
+  });
+  html += `</div>`;
+  html += `<div class="field"><label>Explanation</label><textarea id="edit-explanation" style="min-height:60px;">${escapeHtml(q.explanation||'')}</textarea></div>`;
+  html += `<div style="display:flex; gap:0.5rem;">
+    <button class="primary" id="btn-save-edit">Save changes</button>
+    <button class="ghost" id="btn-cancel-edit">Cancel</button>
+  </div>`;
+
+  card.innerHTML = html;
+
+  document.getElementById('btn-cancel-edit').addEventListener('click', ()=>renderQuiz(currentQuiz));
+  document.getElementById('btn-save-edit').addEventListener('click', ()=>{
+    const optionInputs = card.querySelectorAll('.edit-option');
+    const newOptions = Array.from(optionInputs).map(inp=>inp.value.trim());
+    if(newOptions.some(o=>!o)){ alert('Options cannot be empty.'); return; }
+    const correctRadio = card.querySelector('input[name="edit-correct"]:checked');
+    if(!correctRadio){ alert('Select which option is correct.'); return; }
+    const newCorrectIndex = parseInt(correctRadio.value);
+    const newExplanation = document.getElementById('edit-explanation').value.trim();
+
+    // validate the type-specific fields first, so a rejected save never leaves the question half-edited
+    if(q.qtype === 'assertion_reason'){
+      const a = document.getElementById('edit-assertion').value.trim();
+      const r = document.getElementById('edit-reason').value.trim();
+      if(!a || !r){ alert('Assertion and Reason cannot be empty.'); return; }
+      q.assertion = a; q.reason = r;
+    } else if(listKey){
+      const vals = Array.from(card.querySelectorAll('.edit-card-item')).map(t=>t.value.trim());
+      if(vals.some(v=>!v)){ alert('Statements/items cannot be empty.'); return; }
+      q[listKey] = vals;
+      q.question = document.getElementById('edit-qtext').value.trim();
+    } else if(!isStructured){
+      q.question = document.getElementById('edit-qtext').value.trim();
+    }
+    q.options = newOptions;
+    q.correctIndex = newCorrectIndex;
+    q.explanation = newExplanation;
+    saveQuizToStorage(currentQuiz);
+    renderQuiz(currentQuiz);
+  });
+}
+
+// ===================== PDF EXPORT (redesigned) =====================
+// Draws a bordered List I / List II table directly onto the jsPDF doc, returns the new y position.
+// Each row wraps to as many lines as needed (rather than truncating), and both cells in a row
+// share the taller of the two heights so wrapped text is never clipped.
+function drawMatchTablePdf(doc, matchTable, marginX, y, contentWidth, ensureSpace, colors){
+  const colW = contentWidth / 2;
+  const cellPad = 6;
+  const lineH = 11.5;
+  const headerH = 20;
+
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(9.5);
+  const rowLines = matchTable.map(row=>{
+    const leftLines = doc.splitTextToSize(row.num + '. ' + row.left, colW - cellPad*2);
+    const rightLines = doc.splitTextToSize(row.letter + '. ' + row.right, colW - cellPad*2);
+    return { leftLines, rightLines, height: Math.max(leftLines.length, rightLines.length) * lineH + cellPad*2 };
+  });
+  const totalHeight = headerH + rowLines.reduce((s,r)=>s+r.height,0) + 10;
+  ensureSpace(Math.min(totalHeight, 700)); // if the whole table can't fit on one page it will simply flow across the page break per-row below
+
+  doc.setFillColor(...colors.mossPale);
+  doc.rect(marginX, y, colW, headerH, 'F');
+  doc.rect(marginX+colW, y, colW, headerH, 'F');
+  doc.setDrawColor(...colors.line);
+  doc.setLineWidth(0.6);
+  doc.rect(marginX, y, colW, headerH);
+  doc.rect(marginX+colW, y, colW, headerH);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(9.5);
+  doc.setTextColor(...colors.moss);
+  doc.text('List I', marginX+cellPad, y+13);
+  doc.text('List II', marginX+colW+cellPad, y+13);
+  doc.setTextColor(...colors.ink);
+  y += headerH;
+
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(9.5);
+  rowLines.forEach(row=>{
+    ensureSpace(row.height); // allow a tall wrapped row to push to the next page cleanly if needed
+    doc.rect(marginX, y, colW, row.height);
+    doc.rect(marginX+colW, y, colW, row.height);
+    doc.text(row.leftLines, marginX+cellPad, y+cellPad+9);
+    doc.text(row.rightLines, marginX+colW+cellPad, y+cellPad+9);
+    y += row.height;
+  });
+  return y + 10;
+}
+
+// Draws each statement / pair / item / assertion / reason as its own bordered card.
+// ctx = {getY, setY, ensureSpace} — y is read/written through ctx (not passed by value) so that a
+// page break triggered inside ensureSpace is respected for the card that follows it.
+function drawCardsPdf(doc, cards, marginX, contentWidth, ctx, colors){
+  const pad = 7, lineH = 12, boxW = contentWidth - 16;
+  cards.forEach(c=>{
+    doc.setFont('helvetica','normal'); doc.setFontSize(10);   // set BEFORE splitTextToSize so wrap uses the right font
+    const full = (c.label ? c.label + '  ' : '') + c.text;
+    const lines = doc.splitTextToSize(full, boxW - pad*2 - 6);
+    const h = lines.length*lineH + pad*2 - 2;
+    ctx.ensureSpace(h + 8);
+    const y = ctx.getY();
+    doc.setFillColor(255,255,255);
+    doc.setDrawColor(...colors.line);
+    doc.setLineWidth(0.6);
+    doc.roundedRect(marginX+8, y-10, boxW, h, 3, 3, 'FD');
+    doc.setFillColor(...colors.moss);
+    doc.rect(marginX+8, y-10, 3, h, 'F');
+    doc.setTextColor(...colors.ink);
+    doc.text(lines, marginX+8+pad+3, y+5);
+    ctx.setY(y + h + 6);
+  });
+}
+
+// Asks the user for a filename before any download, defaulting to the topic they typed
+// (when the quiz came from the Topic tab) or the quiz's own generated title otherwise.
+// Returns a filesystem-safe base name (no extension), or null if the user cancels.
+function promptForFilename(suffix, quizOverride){
+  const quiz = quizOverride || currentQuiz;
+  const smartDefault = (currentQuizSourceMode === 'topic' && currentQuizTopicText)
+    ? currentQuizTopicText
+    : (quiz && quiz.title) || 'quiz';
+  const chosen = window.prompt('File name for this download' + (suffix ? ' (' + suffix + ')' : '') + ':', smartDefault);
+  if(chosen === null) return null; // user cancelled
+  const cleaned = chosen.trim() || smartDefault;
+  return cleaned.replace(/[^a-z0-9\u0C80-\u0CFF]+/gi,'_').toLowerCase().replace(/^_+|_+$/g,'') || 'quiz';
+}
+
+// mode 'marked': correct option is highlighted inside the option list.
+// mode 'below': options are left plain, and the answer is printed on its own line after the options.
+function downloadPdf(mode){
+  mode = (mode === 'below') ? 'below' : 'marked';
+  if(!currentQuiz) return;
+  if((currentQuiz && currentQuiz.language) === 'kannada'){
+    alert('PDF export does not support Kannada text (the built-in PDF fonts have no Kannada glyphs, so it would come out garbled).\n\nUse "Download FLT" instead — or open that file and use your browser\'s Print → Save as PDF.');
+    return;
+  }
+  const baseName = promptForFilename(mode === 'below' ? 'answer below options' : 'answers marked');
+  if(baseName === null) return; // cancelled
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'a4'});
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const marginX = 44;
+  const contentWidth = pageWidth - marginX*2;
+  const letters = ['A','B','C','D','E','F'];
+
+  // brand colors
+  const moss = [51, 74, 45];       // deep green
+  const mossPale = [232, 239, 227];
+  const gold = [163, 121, 31];
+  const ink = [43, 38, 32];
+  const inkSoft = [107, 98, 85];
+  const line = [221, 212, 194];
+
+  function drawHeader(){
+    doc.setFillColor(...moss);
+    doc.rect(0, 0, pageWidth, 64, 'F');
+    doc.setTextColor(255,255,255);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(15);
+    doc.text(currentQuiz.title || 'Generated Quiz', marginX, 32);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(9);
+    doc.text(currentQuiz.questions.length + ' questions · Quiz Forge', marginX, 48);
+    doc.setTextColor(...ink);
+  }
+  function drawFooter(pageNum){
+    doc.setDrawColor(...line);
+    doc.setLineWidth(0.5);
+    doc.line(marginX, pageHeight-36, pageWidth-marginX, pageHeight-36);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...inkSoft);
+    doc.text('Page ' + pageNum, pageWidth - marginX, pageHeight-22, {align:'right'});
+    doc.setTextColor(...ink);
+  }
+
+  let pageNum = 1;
+  drawHeader();
+  drawFooter(pageNum);
+  let y = 90;
+
+  function ensureSpace(needed){
+    if(y + needed > pageHeight - 50){
+      doc.addPage();
+      pageNum++;
+      drawHeader();
+      drawFooter(pageNum);
+      y = 90;
+    }
+  }
+
+  currentQuiz.questions.forEach((q, i)=>{
+    const norm = normalizeQuestion(q);
+    const isMatchTable = !!norm.matchTable;
+
+    // IMPORTANT: font/size must be set BEFORE splitTextToSize, since jsPDF calculates
+    // line-wrap width using whatever font is currently active — calling it with the
+    // wrong (leftover) font active computes wrapping for the wrong character widths,
+    // which is what was causing question text to run off the page edge instead of wrapping.
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(11);
+    const qLines = isMatchTable
+      ? doc.splitTextToSize((i+1)+'.  '+(norm.introText||'Match List I with List II:'), contentWidth-16)
+      : doc.splitTextToSize((i+1)+'.  '+norm.introText, contentWidth-16);
+    const tableRowCount = isMatchTable ? norm.matchTable.length + 1 : 0;
+    const cardLineCount = norm.cards.reduce((sum,c)=> sum + doc.splitTextToSize((c.label?c.label+'  ':'')+c.text, contentWidth-40).length + 0.8, 0);
+    const blockLineCount = qLines.length + cardLineCount + tableRowCount*1.6 + norm.options.reduce((s,o)=>s + doc.splitTextToSize(o, contentWidth-40).length, 0) + 3;
+    ensureSpace(Math.min(blockLineCount*13, pageHeight-140));
+
+    // question type chip
+    doc.setFillColor(...mossPale);
+    const chipLabel = typeLabel(q.qtype);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(7.5);
+    const chipWidth = doc.getTextWidth(chipLabel) + 12;
+    doc.roundedRect(marginX, y-9, chipWidth, 13, 3, 3, 'F');
+    doc.setTextColor(...moss);
+    doc.text(chipLabel, marginX+6, y);
+    doc.setTextColor(...ink);
+    y += 14;
+
+    ensureSpace(qLines.length*13.5 + 6);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(11);
+    doc.text(qLines, marginX, y);
+    y += qLines.length * 13.5 + 5;
+
+    if(norm.cards.length){
+      y += 4; // room for the first card's top edge
+      drawCardsPdf(doc, norm.cards, marginX, contentWidth, {getY:()=>y, setY:v=>{y=v;}, ensureSpace}, {moss, line, ink});
+      y += 2;
+    }
+
+    if(isMatchTable){
+      y = drawMatchTablePdf(doc, norm.matchTable, marginX, y, contentWidth, ensureSpace, {moss, mossPale, ink, line});
+    }
+
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(10);
+    norm.options.forEach((opt,j)=>{
+      const isCorrect = mode === 'marked' && j === q.correctIndex;
+      // set the font that will actually be used to DRAW this option before computing its wrap —
+      // correct answers render bold, so their wrap width must be computed in bold too, or long
+      // correct-answer text can overflow the page edge instead of wrapping.
+      doc.setFont('helvetica', isCorrect ? 'bold' : 'normal');
+      const optLines = doc.splitTextToSize((letters[j]||j+1)+'.  '+opt, contentWidth-36);
+      ensureSpace(optLines.length*13 + 4);
+      if(isCorrect){
+        doc.setFillColor(...mossPale);
+        doc.roundedRect(marginX+14, y-9, contentWidth-28, optLines.length*13+4, 3, 3, 'F');
+        doc.setTextColor(...moss);
+      }
+      doc.text(optLines, marginX+20, y);
+      if(isCorrect){ doc.setFont('helvetica','normal'); doc.setTextColor(...ink); }
+      y += optLines.length * 13 + 3;
+    });
+
+    if(mode === 'below'){
+      const ansLetter = letters[q.correctIndex] || (q.correctIndex+1);
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(10);
+      const ansLines = doc.splitTextToSize('Answer: ' + ansLetter + '.  ' + (norm.options[q.correctIndex]||''), contentWidth-36);
+      ensureSpace(ansLines.length*13 + 8);
+      y += 3;
+      doc.setFillColor(...mossPale);
+      doc.roundedRect(marginX+14, y-9, contentWidth-28, ansLines.length*13+4, 3, 3, 'F');
+      doc.setTextColor(...moss);
+      doc.text(ansLines, marginX+20, y);
+      doc.setFont('helvetica','normal');
+      doc.setTextColor(...ink);
+      y += ansLines.length*13 + 6;
+    }
+
+    if(q.explanation){
+      doc.setFont('helvetica','italic');
+      doc.setFontSize(9);
+      const exLines = doc.splitTextToSize('Explanation:\n' + explanationPlain(q.explanation), contentWidth-36);
+      ensureSpace(exLines.length*11.5 + 8);
+      doc.setDrawColor(...gold);
+      doc.setLineWidth(1.2);
+      doc.line(marginX+16, y-6, marginX+16, y + exLines.length*11.5 - 4);
+      doc.setTextColor(...inkSoft);
+      doc.text(exLines, marginX+24, y+2);
+      doc.setTextColor(...ink);
+      doc.setFont('helvetica','normal');
+      y += exLines.length*11.5 + 10;
+    }
+    y += 10;
+    doc.setDrawColor(...line);
+    doc.setLineWidth(0.4);
+    doc.line(marginX, y-6, pageWidth-marginX, y-6);
+    y += 6;
+  });
+
+  doc.save(baseName + (mode === 'below' ? '_answer_below' : '') + '.pdf');
+}
+
+// ===================== FLT HTML EXPORT =====================
+function downloadFlt(){
+  if(!currentQuiz) return;
+  const baseName = promptForFilename();
+  if(baseName === null) return; // cancelled
+  const letters = ['A','B','C','D','E','F'];
+  const questionsJson = JSON.stringify(currentQuiz.questions, null, 2);
+
+  const fltHtml = `<!DOCTYPE html>
+<html lang="${currentQuiz.language === 'kannada' ? 'kn' : 'en'}">
+<head>
+<meta charset="UTF-8">
+<title>${escapeHtml(currentQuiz.title || 'Quiz')} — FLT Format</title>
+<style>
+  body{font-family:'Segoe UI','Noto Sans Kannada','Nirmala UI',Arial,sans-serif; max-width:760px; margin:2rem auto; padding:0 1rem; color:#222;}
+  h1{font-size:1.5rem;}
+  .q{border:1px solid #ddd; border-radius:8px; padding:1rem 1.2rem; margin-bottom:1rem;}
+  .q .num{font-weight:700; color:#334a2d; margin-bottom:0.4rem;}
+  .q .type{font-size:0.7rem; color:#a3791f; background:#f5ecd6; padding:0.1rem 0.5rem; border-radius:10px; margin-left:0.5rem;}
+  .qtext{white-space:pre-line; margin-bottom:0.5rem;}
+  .opt{padding:0.4rem 0.6rem; border-radius:5px; margin-bottom:0.3rem;}
+  .opt.correct{background:#eef4e9; font-weight:600;}
+  .explain{font-size:0.85rem; color:#666; margin-top:0.5rem; border-top:1px dashed #ddd; padding-top:0.5rem;}
+  .explain-card{margin-top:0.7rem; background:#f5ecd6; border-left:4px solid #a3791f; border-radius:6px; padding:0.6rem 0.9rem;}
+  .explain-title{font-weight:700; font-size:0.8rem; color:#a3791f; text-transform:uppercase; margin-bottom:0.3rem;}
+  .explain-point{font-size:0.88rem; padding:0.25rem 0; border-top:1px dashed #e0cf9f;}
+  .explain-title + .explain-point{border-top:none;}
+  .stmt-card{display:flex; gap:0.5rem; border:1px solid #ddd; border-left:3px solid #4a6741; border-radius:6px; padding:0.5rem 0.75rem; margin-bottom:0.4rem; background:#fff;}
+  .stmt-label{font-weight:700; color:#334a2d;}
+  .match-table{width:100%; border-collapse:collapse; margin-bottom:0.6rem; font-size:0.92rem;}
+  .match-table th{text-align:left; background:#eef4e9; padding:0.4rem 0.6rem; font-size:0.8rem; color:#334a2d;}
+  .match-table td{padding:0.4rem 0.6rem; border-bottom:1px solid #eee;}
+</style>
+</head>
+<body>
+<h1>${escapeHtml(currentQuiz.title || 'Quiz')}</h1>
+<!-- FLT_DATA_START
+${questionsJson}
+FLT_DATA_END -->
+${currentQuiz.questions.map((q,i)=>{
+  const norm = normalizeQuestion(q);
+  return `<div class="q">
+  <div class="num">Q${i+1}. <span class="type">${typeLabel(q.qtype)}</span></div>
+  ${questionBodyHtml(norm)}
+  ${norm.options.map((o,j)=>`<div class="opt ${j===q.correctIndex?'correct':''}">${letters[j]}. ${escapeHtml(o)}</div>`).join('\n  ')}
+  ${explanationHtml(q.explanation)}
+</div>`;
+}).join('\n')}
+</body>
+</html>`;
+
+  const blob = new Blob([fltHtml], {type:'text/html'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = baseName + '_flt.html';
+  a.click();
+}
+
+// ===================== PRACTICE MODE =====================
+function startPractice(){
+  practiceState = {
+    index: 0,
+    answers: new Array(currentQuiz.questions.length).fill(null), // selected option index or null
+    revealed: new Array(currentQuiz.questions.length).fill(false),
+    quiz: currentQuiz
+  };
+  document.getElementById('results').classList.add('hidden');
+  document.getElementById('empty-state').classList.add('hidden');
+  document.getElementById('practice-screen').classList.remove('hidden');
+  renderPracticeQuestion();
+}
+
+function renderPracticeQuestion(){
+  const { index, quiz, answers, revealed } = practiceState;
+  const q = quiz.questions[index];
+  const norm = normalizeQuestion(q);
+  const letters = ['A','B','C','D','E','F'];
+  const el = document.getElementById('practice-screen');
+  const pct = Math.round(((index) / quiz.questions.length) * 100);
+
+  let html = `<div class="practice-bar">
+    <button class="ghost" id="btn-exit-practice">Exit</button>
+    <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+    <div style="font-size:0.85rem; color:var(--ink-soft); white-space:nowrap;">${index+1} / ${quiz.questions.length}</div>
+  </div>
+  <div class="practice-q">
+    <div class="qnum" style="margin-bottom:0.6rem;">Question ${index+1} <span class="qtype-badge">${typeLabel(q.qtype)}</span></div>
+    <div style="margin-top:0;">${questionBodyHtml(norm)}</div>
+    <div id="practice-options">`;
+
+  norm.options.forEach((opt,j)=>{
+    let cls = 'practice-opt';
+    if(revealed[index]){
+      if(j === q.correctIndex) cls += ' reveal-correct';
+      else if(j === answers[index]) cls += ' reveal-wrong';
+    } else if(answers[index] === j){
+      cls += ' selected';
+    }
+    html += `<div class="${cls}" data-idx="${j}"><span class="letter">${letters[j]||j+1}</span><span>${escapeHtml(opt)}</span></div>`;
+  });
+
+  html += `</div>`;
+  if(revealed[index] && q.explanation){
+    html += explanationHtml(q.explanation);
+  }
+  html += `
+    <div class="practice-nav">
+      <button class="ghost" id="btn-prev" ${index===0?'disabled':''}>← Previous</button>
+      <div style="display:flex; gap:0.6rem;">
+        ${!revealed[index] ? `<button class="primary" id="btn-check" ${answers[index]===null?'disabled':''}>Check Answer</button>` : ''}
+        <button class="primary" id="btn-next">${index === quiz.questions.length-1 ? 'Finish' : 'Next →'}</button>
+      </div>
+    </div>
+  </div>`;
+
+  el.innerHTML = html;
+
+  document.getElementById('btn-exit-practice').addEventListener('click', exitPractice);
+  document.getElementById('btn-prev').addEventListener('click', ()=>{ practiceState.index--; renderPracticeQuestion(); });
+  document.getElementById('btn-next').addEventListener('click', ()=>{
+    if(index === quiz.questions.length-1){ showScoreScreen(); }
+    else { practiceState.index++; renderPracticeQuestion(); }
+  });
+  const checkBtn = document.getElementById('btn-check');
+  if(checkBtn) checkBtn.addEventListener('click', ()=>{ practiceState.revealed[index] = true; saveQuizToStorage(currentQuiz); renderPracticeQuestion(); });
+
+  if(!revealed[index]){
+    document.querySelectorAll('.practice-opt').forEach(optEl=>{
+      optEl.addEventListener('click', ()=>{
+        practiceState.answers[index] = parseInt(optEl.dataset.idx);
+        saveQuizToStorage(currentQuiz);
+        renderPracticeQuestion();
+      });
+    });
+  }
+}
+
+function exitPractice(){
+  document.getElementById('practice-screen').classList.add('hidden');
+  document.getElementById('practice-screen').innerHTML = '';
+  document.getElementById('results').classList.remove('hidden');
+}
+
+function showScoreScreen(){
+  const { quiz, answers } = practiceState;
+  let correct = 0;
+  quiz.questions.forEach((q,i)=>{ if(answers[i] === q.correctIndex) correct++; });
+  const total = quiz.questions.length;
+  const pct = Math.round((correct/total)*100);
+  const letters = ['A','B','C','D','E','F'];
+
+  let html = `<div class="score-card">
+    <div class="score-big">${correct} / ${total}</div>
+    <div class="score-sub">${pct}% correct</div>
+  </div>
+  <div class="actions" style="margin-bottom:1.5rem;">
+    <button class="ghost" id="btn-retake">Retake Quiz</button>
+    <button class="ghost" id="btn-exit-to-key">Back to Answer Key</button>
+    <button class="ghost" id="btn-download-results-pdf">Download Results PDF</button>
+  </div>
+  <h3 style="margin-bottom:1rem;">Review</h3>`;
+
+  quiz.questions.forEach((q,i)=>{
+    const norm = normalizeQuestion(q);
+    const isCorrect = answers[i] === q.correctIndex;
+    const wasAnswered = answers[i] !== null;
+    html += `<div class="review-item ${isCorrect?'right':'wrong'}">
+      <div class="qnum">Question ${i+1} <span class="qtype-badge">${typeLabel(q.qtype)}</span> — ${isCorrect?'Correct':(wasAnswered?'Incorrect':'Skipped')}</div>
+      ${questionBodyHtml(norm)}`;
+    norm.options.forEach((opt,j)=>{
+      let cls = 'opt';
+      if(j===q.correctIndex) cls += ' correct';
+      html += `<div class="${cls}"><span class="letter">${letters[j]||j+1}</span><span>${escapeHtml(opt)}${wasAnswered && j===answers[i] && !isCorrect ? '  (your answer)' : ''}</span></div>`;
+    });
+    if(q.explanation) html += explanationHtml(q.explanation);
+    html += `</div>`;
+  });
+
+  const el = document.getElementById('practice-screen');
+  el.innerHTML = html;
+  document.getElementById('btn-retake').addEventListener('click', startPractice);
+  document.getElementById('btn-exit-to-key').addEventListener('click', exitPractice);
+  document.getElementById('btn-download-results-pdf').addEventListener('click', ()=>downloadResultsPdf(correct,total));
+}
+
+function downloadResultsPdf(correct,total){
+  if(!practiceState) return;
+  if((practiceState.quiz && practiceState.quiz.language) === 'kannada'){
+    alert('PDF export does not support Kannada text. Please take a screenshot of the score screen instead.');
+    return;
+  }
+  const baseName = promptForFilename('results', practiceState.quiz);
+  if(baseName === null) return; // cancelled
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'a4'});
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const marginX = 44;
+  const contentWidth = pageWidth - marginX*2;
+  const letters = ['A','B','C','D','E','F'];
+  const moss = [51,74,45], mossPale=[232,239,227], error=[163,61,47], errorPale=[247,226,222], ink=[43,38,32], inkSoft=[107,98,85], line=[221,212,194];
+
+  doc.setFillColor(...moss);
+  doc.rect(0,0,pageWidth,74,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(16);
+  doc.text((practiceState.quiz.title||'Quiz') + ' — Results', marginX, 32);
+  doc.setFontSize(11);
+  doc.text('Score: ' + correct + ' / ' + total + ' (' + Math.round(correct/total*100) + '%)', marginX, 52);
+  doc.setTextColor(...ink);
+  let y = 100;
+  let pageNum = 1;
+  function footer(){
+    doc.setDrawColor(...line); doc.line(marginX,pageHeight-36,pageWidth-marginX,pageHeight-36);
+    doc.setFontSize(8.5); doc.setTextColor(...inkSoft);
+    doc.text('Page '+pageNum, pageWidth-marginX, pageHeight-22, {align:'right'});
+    doc.setTextColor(...ink);
+  }
+  footer();
+  function ensureSpace(n){ if(y+n>pageHeight-50){ doc.addPage(); pageNum++; y=56; footer(); } }
+
+  practiceState.quiz.questions.forEach((q,i)=>{
+    const norm = normalizeQuestion(q);
+    const isCorrect = practiceState.answers[i] === q.correctIndex;
+    // set font BEFORE splitTextToSize — jsPDF wraps using whatever font is currently active,
+    // so computing wrap width with the wrong font active causes text to overflow the page
+    // instead of wrapping (this was the cause of questions appearing cut off in the PDF).
+    doc.setFont('helvetica','bold'); doc.setFontSize(11);
+    const qLines = doc.splitTextToSize((i+1)+'.  '+norm.introText, contentWidth-16);
+    ensureSpace(qLines.length*13.5+6);
+    doc.text(qLines, marginX, y);
+    y += qLines.length*13.5+4;
+    if(norm.cards.length){
+      y += 4;
+      drawCardsPdf(doc, norm.cards, marginX, contentWidth, {getY:()=>y, setY:v=>{y=v;}, ensureSpace}, {moss, line, ink});
+      y += 2;
+    }
+    doc.setFont('helvetica','normal'); doc.setFontSize(10);
+    norm.options.forEach((opt,j)=>{
+      const isRight = j===q.correctIndex;
+      const isUserWrong = j===practiceState.answers[i] && !isCorrect;
+      // correct/wrong options render bold — compute their wrap width in bold too, or long
+      // option text can overflow instead of wrapping onto a second line.
+      doc.setFont('helvetica', (isRight || isUserWrong) ? 'bold' : 'normal');
+      const optLines = doc.splitTextToSize((letters[j]||j+1)+'.  '+opt, contentWidth-36);
+      ensureSpace(optLines.length*13+4);
+      if(isRight){ doc.setFillColor(...mossPale); doc.roundedRect(marginX+14,y-9,contentWidth-28,optLines.length*13+4,3,3,'F'); doc.setTextColor(...moss); }
+      else if(isUserWrong){ doc.setFillColor(...errorPale); doc.roundedRect(marginX+14,y-9,contentWidth-28,optLines.length*13+4,3,3,'F'); doc.setTextColor(...error); }
+      doc.text(optLines, marginX+20, y);
+      doc.setFont('helvetica','normal'); doc.setTextColor(...ink);
+      y += optLines.length*13+3;
+    });
+    if(q.explanation){
+      doc.setFont('helvetica','italic'); doc.setFontSize(9);
+      const exLines = doc.splitTextToSize('Explanation:\n'+explanationPlain(q.explanation), contentWidth-36);
+      ensureSpace(exLines.length*11.5+8);
+      doc.setTextColor(...inkSoft);
+      doc.text(exLines, marginX+24, y+2);
+      doc.setFont('helvetica','normal'); doc.setTextColor(...ink);
+      y += exLines.length*11.5+10;
+    }
+    y += 8;
+    doc.setDrawColor(...line); doc.line(marginX,y-6,pageWidth-marginX,y-6);
+    y += 6;
+  });
+
+  doc.save(baseName + '_results.pdf');
+}
+
+// ===================== RESTORE SAVED QUIZ ON LOAD =====================
+(function checkForSavedQuiz(){
+  const saved = loadQuizFromStorage();
+  if(!saved || !saved.quiz || !saved.quiz.questions || saved.quiz.questions.length === 0) return;
+
+  const ageMinutes = Math.round((Date.now() - (saved.savedAt||0)) / 60000);
+  const ageText = ageMinutes < 1 ? 'just now' : ageMinutes < 60 ? ageMinutes + ' min ago' : Math.round(ageMinutes/60) + ' hr ago';
+  document.getElementById('restore-details').textContent =
+    `"${saved.quiz.title || 'Generated Quiz'}" — ${saved.quiz.questions.length} questions, saved ${ageText}` +
+    (saved.practice ? ` (practice in progress: question ${saved.practice.index+1})` : '');
+
+  document.getElementById('setup-screen').classList.add('hidden');
+  document.getElementById('empty-state').classList.add('hidden');
+  document.getElementById('restore-prompt').classList.remove('hidden');
+
+  document.getElementById('btn-restore-yes').addEventListener('click', ()=>{
+    currentQuiz = saved.quiz;
+    currentQuizSourceMode = saved.sourceMode || null;
+    currentQuizTopicText = saved.topicText || null;
+    if(currentQuizSourceMode === 'topic' && currentQuizTopicText){
+      document.getElementById('input-topic').value = currentQuizTopicText;
+    }
+    updateTopicContinueVisibility();
+    document.getElementById('restore-prompt').classList.add('hidden');
+    if(saved.practice){
+      practiceState = { index: saved.practice.index, answers: saved.practice.answers, revealed: saved.practice.revealed, quiz: currentQuiz };
+      document.getElementById('practice-screen').classList.remove('hidden');
+      renderPracticeQuestion();
+    } else {
+      renderQuiz(currentQuiz);
+    }
+  });
+  document.getElementById('btn-restore-no').addEventListener('click', ()=>{
+    clearSavedQuiz();
+    document.getElementById('restore-prompt').classList.add('hidden');
+    document.getElementById('setup-screen').classList.remove('hidden');
+    document.getElementById('empty-state').classList.remove('hidden');
+  });
+})();
+</script>
+</body>
+</html>
